@@ -90,6 +90,7 @@ body{
   background:var(--bg);
   color:var(--text);
   -webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;
 }
 a{color:var(--accent)}
 .hide{display:none !important}
@@ -139,6 +140,9 @@ a{color:var(--accent)}
 .sw[data-accent="teal"]{background:#0d8a7c}
 .sw[data-accent="violet"]{background:#6d4fe0}
 .sw[data-accent="graphite"]{background:#333d52}
+.swatches.big{gap:14px;margin:2px 0 0}
+.swatches.big .sw{width:26px;height:26px}
+.mini-label{display:block;font-size:12px;color:var(--dim);margin:0 0 7px}
 .foot-note{font-size:10.5px;color:var(--dim);margin:10px 2px 0;line-height:1.5}
 
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -356,6 +360,14 @@ textarea{resize:vertical;line-height:1.5}
 @keyframes toast-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ============ 響應式 ============ */
+@media (min-width:761px){
+  /* 橫向 iPhone 的瀏海安全區域（桌面 env() 為 0，無影響） */
+  .sidebar{padding-left:calc(12px + env(safe-area-inset-left))}
+  .topbar{padding-right:calc(24px + env(safe-area-inset-right))}
+  .content{padding-left:calc(24px + env(safe-area-inset-left));padding-right:calc(24px + env(safe-area-inset-right))}
+  /* 桌機已有側邊欄外觀控制，設定頁的重複卡片隱藏 */
+  .card.appearance-card{display:none}
+}
 @media (max-width:1100px){
   .kpis{grid-template-columns:repeat(2,1fr)}
   .grid-2,.grid-eq{grid-template-columns:1fr}
@@ -363,21 +375,73 @@ textarea{resize:vertical;line-height:1.5}
 @media (max-width:900px){
   .board{grid-template-columns:1fr}
 }
+
+/* ---- 手機版（iPhone 6.1 吋≈390–393px；含瀏海／底部安全區域） ---- */
 @media (max-width:760px){
   .app{flex-direction:column}
-  .sidebar{width:100%;height:auto;position:static;flex-direction:row;align-items:center;
-    gap:8px;padding:8px 12px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}
-  .brand{display:none}
-  .nav{flex-direction:row;flex:0 0 auto}
-  .nav a{white-space:nowrap;padding:6px 10px}
-  .theme-box{border-top:0;margin:0;padding:0;margin-left:auto}
-  .theme-box label,.foot-note{display:none}
-  .swatches{margin:0;gap:6px}
-  .sw{width:16px;height:16px}
-  .seg{width:132px;flex:0 0 132px}
-  .topbar{flex-wrap:wrap}
+
+  /* 側邊欄 → 固定底部工具列 */
+  .sidebar{
+    position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;
+    width:100%;height:auto;
+    flex-direction:row;align-items:stretch;gap:0;
+    padding:6px calc(6px + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(6px + env(safe-area-inset-left));
+    border-right:0;border-top:1px solid var(--border);
+  }
+  .brand,.theme-box{display:none}
+  .nav{flex-direction:row;flex:1;gap:2px;justify-content:space-between}
+  .nav a{
+    flex:1;flex-direction:column;justify-content:center;align-items:center;
+    gap:3px;padding:5px 2px;font-size:10.5px;border-radius:10px;white-space:nowrap;
+  }
+  .nav svg{width:19px;height:19px;flex:0 0 19px}
+
+  /* 頂列：單行緊湊（標題＋搜尋圖示＋新增任務） */
+  .topbar{
+    flex-wrap:nowrap;gap:8px;
+    padding:calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 8px calc(12px + env(safe-area-inset-left));
+  }
+  .topbar h1{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar .spacer{display:none}
   #today-label{display:none}
-  .content{padding:16px}
+  .search{flex:0 0 34px;width:34px;height:34px;justify-content:center;padding:0;border-radius:10px}
+  .search span,.search kbd{display:none}
+  .search svg{width:15px;height:15px;flex:0 0 15px}
+  .topbar .btn-primary{padding:7px 11px;font-size:12.5px}
+
+  /* 內容：底部預留工具列高度 */
+  .content{padding:14px calc(14px + env(safe-area-inset-right)) calc(88px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left))}
+
+  /* 看板：橫向滑動＋對齊點 */
+  .board{display:flex;overflow-x:auto;gap:12px;padding-bottom:6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .board .col{flex:0 0 82%;min-width:82%;scroll-snap-align:start}
+
+  /* 彈窗：底部卡片式（搜尋維持頂部） */
+  .overlay{align-items:flex-end;padding:0}
+  .overlay.top{padding:calc(env(safe-area-inset-top) + 10px) 10px 10px}
+  .modal{max-height:calc(100vh - 64px);max-height:calc(100dvh - 64px);border-radius:16px 16px 0 0}
+  .modal-b{padding:14px 16px}
+  .modal-f{padding:14px 16px calc(14px + env(safe-area-inset-bottom))}
+
+  /* 通知：浮在工具列上方 */
+  #toasts{bottom:calc(76px + env(safe-area-inset-bottom));right:12px;left:12px;align-items:center}
+  .toast{max-width:100%}
+
+  /* 表單與內容微調 */
+  .row2{grid-template-columns:1fr}
   .row3{grid-template-columns:1fr 1fr}
-  .row3 .field{grid-column:auto}
+  .row3 .field:nth-child(3){grid-column:1/-1}
+  .toolbar{gap:8px;margin-bottom:14px}
+  .toolbar .btn-primary[data-action="open-task"]{display:none}
+  .card-h{padding:11px 14px}
+  .card-b{padding:12px 14px}
+  .cal{padding:10px 12px;gap:5px}
+}
+@media (max-width:430px){
+  .kpis{gap:10px}
+  .kpi{padding:12px}
+  .kpi .n{font-size:22px}
+  .donut{width:40px;height:40px;flex:0 0 40px}
+  .nav a{font-size:10px;padding:5px 0}
+  .topbar .btn-primary{padding:7px 10px}
 }

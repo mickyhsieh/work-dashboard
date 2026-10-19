@@ -665,6 +665,16 @@ function renderStats(){
 function renderSettings(){
   var h = '';
   h += syncCardHTML();
+  h += '<div class="card appearance-card" style="margin-bottom:14px"><div class="card-h">外觀</div><div class="card-b">';
+  h += '<label class="mini-label">主題</label>';
+  h += '<div class="seg wide">' + [['system','系統'],['light','淺色'],['dark','深色']].map(function(o){
+    return '<button type="button" class="' + (themeMode === o[0] ? 'on' : '') + '" data-mode="' + o[0] + '">' + o[1] + '</button>';
+  }).join('') + '</div>';
+  h += '<label class="mini-label" style="margin-top:14px">主色</label>';
+  h += '<div class="swatches big">' + [['orange','橙'],['blue','藍'],['teal','青綠'],['violet','紫'],['graphite','石墨']].map(function(o){
+    return '<button type="button" class="sw' + (accent === o[0] ? ' on' : '') + '" data-accent="' + o[0] + '" title="' + o[1] + '"></button>';
+  }).join('') + '</div>';
+  h += '</div></div>';
   h += '<div class="grid-eq">';
   h += '<div class="card"><div class="card-h">資料管理</div><div class="card-b">';
   h += '<p class="kbd-note" style="margin-top:0">資料儲存在這台電腦的瀏覽器（localStorage）。建議定期匯出備份；換裝置時用匯入還原。也可以直接把 JSON 檔拖進這個頁面匯入。</p>';
