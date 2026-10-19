@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="個人工作儀錶板：任務、專案、會議、文件、工時統計" />
+<title>工作儀錶板</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c06a0a'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E5%84%80%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+<script>
+/* 在繪製前決定主題與主色，避免閃爍 */
+(function(){
+  try{
+    var m = localStorage.getItem('wd-theme') || 'system';
+    var d = m === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : m;
+    document.documentElement.dataset.theme = d;
+    var a = localStorage.getItem('wd-accent');
+    document.documentElement.dataset.accent = a || 'orange';
+  }catch(e){}
+})();
+</script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 側邊欄 ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">儀</div>
+      <span>工作儀錶板</span>
+    </div>
+    <nav class="nav">
+      <a class="active" data-action="nav" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        總覽
+      </a>
+      <a data-action="nav" data-view="tasks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        任務
+      </a>
+      <a data-action="nav" data-view="projects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        專案
+      </a>
+      <a data-action="nav" data-view="meetings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        會議
+      </a>
+      <a data-action="nav" data-view="docs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        文件
+      </a>
+      <a data-action="nav" data-view="stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+        統計
+      </a>
+      <a data-action="nav" data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        設定
+      </a>
+    </nav>
+    <div class="theme-box">
+      <label>外觀</label>
+      <div class="seg" id="theme-seg">
+        <button type="button" data-mode="system" class="on">系統</button>
+        <button type="button" data-mode="light">淺色</button>
+        <button type="button" data-mode="dark">深色</button>
+      </div>
+      <label style="margin-top:12px">主色</label>
+      <div class="swatches" id="accent-swatches">
+        <button type="button" class="sw on" data-accent="orange" title="橙"></button>
+        <button type="button" class="sw" data-accent="blue" title="藍"></button>
+        <button type="button" class="sw" data-accent="teal" title="青綠"></button>
+        <button type="button" class="sw" data-accent="violet" title="紫"></button>
+        <button type="button" class="sw" data-accent="graphite" title="石墨"></button>
+      </div>
+      <p class="foot-note">v1.1・本機儲存＋可選雲端同步<br>Ctrl+K 全域搜尋</p>
+    </div>
+  </aside>
+
+  <!-- ============ 主區 ============ -->
+  <div class="main">
+    <header class="topbar">
+      <h1 id="page-title">總覽</h1>
+      <div class="search" data-action="open-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>搜尋任務、會議、文件…</span>
+        <kbd>Ctrl K</kbd>
+      </div>
+      <div class="spacer"></div>
+      <span class="dim" id="today-label"></span>
+      <button class="btn btn-primary" data-action="open-task">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新增任務
+      </button>
+    </header>
+
+    <div class="content">
+      <section id="view-overview" class="view on"></section>
+      <section id="view-tasks" class="view"></section>
+      <section id="view-projects" class="view"></section>
+      <section id="view-meetings" class="view"></section>
+      <section id="view-docs" class="view"></section>
+      <section id="view-stats" class="view"></section>
+      <section id="view-settings" class="view"></section>
+    </div>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>
