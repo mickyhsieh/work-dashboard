@@ -324,6 +324,11 @@ code{font-family:Consolas,Menlo,monospace;font-size:12px;background:var(--surfac
 pre{background:var(--surface-2);border-radius:8px;padding:10px 12px;overflow:auto;line-height:1.5;margin:6px 0}
 pre code{background:none;padding:0}
 .sync-status{font-size:12px;color:var(--dim)}
+.sync-meta{display:flex;flex-direction:column;gap:7px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);font-size:12px}
+.sync-meta .m{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sync-meta .m>span{color:var(--dim)}
+.sync-meta .m>b{margin-left:auto;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.sync-meta .ibtn{width:24px;height:24px;border-radius:6px;font-size:12px;display:inline-grid;place-items:center}
 
 /* ============ 彈窗 / 表單 ============ */
 .overlay{position:fixed;inset:0;background:rgba(15,17,21,.5);display:flex;align-items:center;

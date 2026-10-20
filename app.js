@@ -228,6 +228,7 @@ function go(view){
   $$('.view').forEach(function(v){ v.classList.toggle('on', v.id === 'view-' + view); });
   $$('.nav a').forEach(function(a){ a.classList.toggle('active', a.dataset.view === view); });
   window.scrollTo(0, 0);
+  if(view === 'settings') refreshCloudTime();
 }
 
 /* ================= 渲染：總覽 ================= */
@@ -1157,7 +1158,7 @@ var syncCfg = loadSync();
 var pushTimer = null;
 
 function loadSync(){
-  var d = { url:'', anonKey:'', docId:'', autoPush:false, lastSyncAt:null, lastPushAt:null };
+  var d = { url:'', anonKey:'', docId:'', autoPush:false, lastSyncAt:null, lastPushAt:null, cloudUpdatedAt:undefined };
   try{
     var raw = localStorage.getItem(LS_SYNC);
     if(raw){
@@ -1210,6 +1211,7 @@ function sbTest(){
   var statusEl = $('#sync-status');
   function show(msg, isErr){
     if(statusEl){
+      statusEl.dataset.msg = '1';
       statusEl.textContent = msg;
       statusEl.style.color = isErr ? 'var(--red)' : 'var(--green)';
     }
@@ -1223,7 +1225,7 @@ function sbTest(){
       if(!r.ok) return r.text().then(function(txt){ throw { res: r, body: txt }; });
       return r.json();
     })
-    .then(function(){ show('連線成功：資料表正常 ✓', false); toast('連線成功，資料表正常'); })
+    .then(function(){ show('連線成功：資料表正常 ✓', false); toast('連線成功，資料表正常'); refreshCloudTime(); })
     .catch(function(err){
       var msg = '連線失敗：' + syncErrMsg(err.res, err);
       if(err && err.res && err.body){
@@ -1245,6 +1247,7 @@ function pushToCloud(silent){
     .then(function(){
       syncCfg.lastSyncAt = nowIso;
       syncCfg.lastPushAt = nowIso;
+      syncCfg.cloudUpdatedAt = nowIso;
       saveSyncCfg(); updateSyncUI();
       if(!silent) toast('已備份到雲端');
     })
@@ -1254,6 +1257,7 @@ function applyCloudPayload(remote){
   state = normalize(remote.payload);
   saveState(); render();
   syncCfg.lastSyncAt = new Date().toISOString();
+  syncCfg.cloudUpdatedAt = remote.updated_at || null;
   saveSyncCfg(); updateSyncUI();
   toast('已從雲端載入資料');
 }
@@ -1275,6 +1279,8 @@ function checkCloudNewer(){
   fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
     .then(function(r){ return r.ok ? r.json() : []; })
     .then(function(arr){
+      syncCfg.cloudUpdatedAt = (arr && arr.length) ? (arr[0].updated_at || null) : null;
+      saveSyncCfg(); updateSyncUI();
       if(!arr || !arr.length) return;
       var ts = Date.parse(arr[0].updated_at) || 0;
       var localTs = Math.max(state.modifiedAt || 0, Date.parse(syncCfg.lastPushAt || '') || 0);
@@ -1294,14 +1300,56 @@ function fmtDT(iso){
   if(isNaN(d.getTime())) return String(iso);
   return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
+function relTime(iso){
+  var t = new Date(iso).getTime();
+  if(isNaN(t)) return '';
+  var diff = Math.max(0, Date.now() - t);
+  var m = Math.floor(diff / 60000);
+  if(m < 1) return '剛剛';
+  if(m < 60) return m + ' 分鐘前';
+  var hrs = Math.floor(m / 60);
+  if(hrs < 24) return hrs + ' 小時前';
+  return Math.floor(hrs / 24) + ' 天前';
+}
+function fmtRel(iso){
+  var rel = relTime(iso);
+  return fmtDT(iso) + (rel ? '（' + rel + '）' : '');
+}
 function updateSyncUI(){
   var el = $('#sync-status');
-  if(!el) return;
-  var parts = [];
-  if(sbReady()) parts.push('已設定：' + syncCfg.url);
-  else parts.push('尚未完成設定');
-  if(syncCfg.lastSyncAt) parts.push('上次同步：' + fmtDT(syncCfg.lastSyncAt));
-  el.textContent = parts.join('・');
+  if(el && el.dataset.msg !== '1'){
+    el.style.color = '';
+    el.textContent = sbReady() ? '已設定：' + urlHost(syncCfg.url) : '尚未完成設定';
+  }
+  var meta = $('#sync-meta');
+  if(!meta) return;
+  if(!sbReady()){
+    meta.innerHTML = '<div class="m"><span>連線狀態</span><b>尚未完成設定</b></div>';
+    return;
+  }
+  var cloud;
+  if(syncCfg.cloudUpdatedAt === null) cloud = '雲端尚無資料';
+  else if(syncCfg.cloudUpdatedAt) cloud = fmtRel(syncCfg.cloudUpdatedAt);
+  else cloud = '尚未取得';
+  var local = (typeof state.modifiedAt === 'number') ? fmtRel(new Date(state.modifiedAt).toISOString()) : '—';
+  meta.innerHTML =
+    '<div class="m"><span>本機最後修改</span><b>' + local + '</b></div>' +
+    '<div class="m"><span>上次上傳／還原</span><b>' + (syncCfg.lastSyncAt ? fmtRel(syncCfg.lastSyncAt) : '尚未同步') + '</b></div>' +
+    '<div class="m"><span>雲端最後更新</span><b>' + cloud +
+      ' <button type="button" class="ibtn" data-action="sync-meta" title="重新取得雲端時間">↻</button></b></div>';
+}
+var cloudTimeBusy = false;
+function refreshCloudTime(){
+  if(!sbReady() || cloudTimeBusy) return;
+  cloudTimeBusy = true;
+  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=updated_at&limit=1', { headers: sbHeaders() })
+    .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
+    .then(function(arr){
+      syncCfg.cloudUpdatedAt = (arr && arr.length) ? (arr[0].updated_at || null) : null;
+      saveSyncCfg();
+    })
+    .catch(function(){})
+    .then(function(){ cloudTimeBusy = false; updateSyncUI(); });
 }
 function syncCardHTML(){
   var sql = 'create table if not exists dashboards (\n' +
@@ -1326,6 +1374,7 @@ function syncCardHTML(){
     '<button type="button" class="btn btn-ghost" data-action="sync-pull">從雲端還原</button>' +
   '</div>';
   h += '<div class="sync-status" id="sync-status" style="margin-top:10px"></div>';
+  h += '<div class="sync-meta" id="sync-meta"></div>';
   h += '<details><summary>第一次設定：三個步驟</summary><div class="body">';
   h += '<p class="kbd-note">1. 到 supabase.com 註冊 → New project（免費方案）。</p>';
   h += '<p class="kbd-note">2. 左側選單 SQL Editor → 貼上以下 SQL → Run：</p>';
@@ -1459,6 +1508,7 @@ document.addEventListener('click', function(e){
     case 'export-json': exportJSON(); break;
     case 'import-json': { var fi = $('#import-file'); if(fi) fi.click(); break; }
     case 'sync-test': sbTest(); break;
+    case 'sync-meta': refreshCloudTime(); break;
     case 'sync-push': syncCfgFromInputs(); pushToCloud(false); break;
     case 'sync-pull': pullFromCloud(true); break;
     case 'seed-demo':
@@ -1516,7 +1566,12 @@ document.addEventListener('submit', function(e){
 document.addEventListener('input', function(e){
   if(e.target.id === 'gsearch') renderSearch(e.target.value);
   else if(e.target.id === 'doc-search'){ docSearch = e.target.value; renderDocsList(); }
-  else if(e.target.id === 'sync-url' || e.target.id === 'sync-key' || e.target.id === 'sync-doc'){ syncCfgFromInputs(); updateSyncUI(); }
+  else if(e.target.id === 'sync-url' || e.target.id === 'sync-key' || e.target.id === 'sync-doc'){
+    syncCfgFromInputs();
+    var st = $('#sync-status');
+    if(st){ delete st.dataset.msg; st.style.color = ''; }
+    updateSyncUI();
+  }
 });
 
 /* ================= 事件：檔案 ================= */
