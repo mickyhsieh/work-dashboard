@@ -23,6 +23,7 @@
 index.html    入口（部署時的主要檔案）
 styles.css    樣式
 app.js        核心邏輯（資料、儲存、互動）
+telegram-bot/ Telegram → 任務（Supabase Edge Function，選用）
 prototype.html  早期風格原型（可刪除）
 README.md     本說明
 ```
@@ -72,7 +73,12 @@ create policy "anon all" on dashboards
 
 - 另一台裝置：填相同設定 → 按「**從雲端還原**」
 - 開啟「**每次變更後自動上傳**」：本機編輯約 2.5 秒後自動同步到雲端
+- 開啟「**自動接收雲端變更**」：每 30 秒檢查雲端，別台裝置或 Telegram 的更新會自動出現
 - 開啟網頁時若偵測到雲端版本較新，會跳出詢問是否載入
+
+### 透過 Telegram 新增任務（選用）
+
+設定一支 Telegram Bot，就能直接傳「買牛奶 明天」把任務寫進雲端，詳見 [`telegram-bot/README.md`](telegram-bot/README.md)。
 
 ### 注意
 
@@ -120,3 +126,4 @@ https://<你的帳號>.github.io/work-dashboard/
 - **v1.5**：GitHub 專案面板（顯示 issue、PR 狀態）
 - **v2**：Google Calendar／Outlook 日曆整合（OAuth）、信件待辦萃取
 - 雲端同步：✅ 已完成（Supabase；可自訂 API 替換）
+- Telegram 任務收集：✅ 任務已完成（Edge Function）；會議／行程待加

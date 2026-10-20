@@ -57,6 +57,7 @@ function loadState(){
 function normalize(obj){
   var o = {
     version: 1,
+    modifiedAt: obj.modifiedAt || null,
     tasks: obj.tasks || [],
     projects: obj.projects || [],
     meetings: obj.meetings || [],
@@ -1156,9 +1157,10 @@ function importFile(file){
 /* ================= 雲端同步（Supabase 免費版） ================= */
 var syncCfg = loadSync();
 var pushTimer = null;
+var applyingCloud = false;
 
 function loadSync(){
-  var d = { url:'', anonKey:'', docId:'', autoPush:false, lastSyncAt:null, lastPushAt:null, cloudUpdatedAt:undefined };
+  var d = { url:'', anonKey:'', docId:'', autoPush:false, autoPull:true, lastSyncAt:null, lastPushAt:null, lastPullAt:null, cloudUpdatedAt:undefined };
   try{
     var raw = localStorage.getItem(LS_SYNC);
     if(raw){
@@ -1253,13 +1255,16 @@ function pushToCloud(silent){
     })
     .catch(function(err){ toast('雲端上傳失敗：' + syncErrMsg(err.res, err)); });
 }
-function applyCloudPayload(remote){
+function applyCloudPayload(remote, silent){
+  applyingCloud = true;
   state = normalize(remote.payload);
   saveState(); render();
+  applyingCloud = false;
   syncCfg.lastSyncAt = new Date().toISOString();
   syncCfg.cloudUpdatedAt = remote.updated_at || null;
+  if(remote.updated_at) syncCfg.lastPullAt = remote.updated_at;
   saveSyncCfg(); updateSyncUI();
-  toast('已從雲端載入資料');
+  if(!silent) toast('已從雲端載入資料');
 }
 function pullFromCloud(confirmFirst){
   syncCfgFromInputs();
@@ -1291,6 +1296,7 @@ function checkCloudNewer(){
     .catch(function(){});
 }
 function scheduleAutoPush(){
+  if(applyingCloud) return;
   if(!syncCfg || !syncCfg.autoPush || !sbReady()) return;
   if(pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(function(){ pushToCloud(true); }, 2500);
@@ -1351,6 +1357,42 @@ function refreshCloudTime(){
     .catch(function(){})
     .then(function(){ cloudTimeBusy = false; updateSyncUI(); });
 }
+var autoPullBusy = false;
+var autoPullTimer = null;
+var AUTO_PULL_MS = 30000;
+function startAutoPull(){
+  if(autoPullTimer) clearInterval(autoPullTimer);
+  autoPullTimer = setInterval(autoPullTick, AUTO_PULL_MS);
+}
+function autoPullTick(){
+  if(!sbReady() || !syncCfg.autoPull || autoPullBusy) return;
+  if(modalRoot.innerHTML) return; // 正在編輯，先不打斷
+  var ae = document.activeElement;
+  if(ae && ae.closest && ae.closest('#view-settings') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  autoPullBusy = true;
+  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=updated_at&limit=1', { headers: sbHeaders() })
+    .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
+    .then(function(arr){
+      if(!arr || !arr.length) return;
+      var remoteTs = Date.parse(arr[0].updated_at) || 0;
+      var localTs = Math.max(
+        state.modifiedAt || 0,
+        Date.parse(syncCfg.lastPushAt || '') || 0,
+        Date.parse(syncCfg.lastPullAt || '') || 0
+      );
+      if(remoteTs <= localTs + 2000) return;
+      return fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
+        .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
+        .then(function(rows){
+          if(rows && rows.length){
+            applyCloudPayload(rows[0], true);
+            toast('已同步雲端變更');
+          }
+        });
+    })
+    .catch(function(){})
+    .then(function(){ autoPullBusy = false; });
+}
 function syncCardHTML(){
   var sql = 'create table if not exists dashboards (\n' +
     '  id text primary key,\n' +
@@ -1367,7 +1409,10 @@ function syncCardHTML(){
     '<div class="field"><label>anon / publishable key（在 API Keys 頁）</label><input id="sync-key" value="' + esc(syncCfg.anonKey) + '" placeholder="eyJhbGciOi… 或 sb_publishable_…"></div>' +
     '<div class="field"><label>文件金鑰（自訂，等同密碼）</label><input id="sync-doc" value="' + esc(syncCfg.docId) + '" placeholder="my-dashboard-8f3k"></div>' +
   '</div>';
-  h += '<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="sync-auto"' + (syncCfg.autoPush ? ' checked' : '') + '> 每次變更後自動上傳</label>';
+  h += '<div class="sync-opts">' +
+    '<label><input type="checkbox" id="sync-auto"' + (syncCfg.autoPush ? ' checked' : '') + '> 每次變更後自動上傳</label>' +
+    '<label><input type="checkbox" id="sync-autopull"' + (syncCfg.autoPull !== false ? ' checked' : '') + '> 自動接收雲端變更（每 30 秒，適合 Telegram 新增任務）</label>' +
+  '</div>';
   h += '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
     '<button type="button" class="btn btn-ghost" data-action="sync-test">測試連線</button>' +
     '<button type="button" class="btn btn-primary" data-action="sync-push">備份到雲端</button>' +
@@ -1586,6 +1631,11 @@ document.addEventListener('change', function(e){
     saveSyncCfg();
     toast(syncCfg.autoPush ? '已開啟自動上傳' : '已關閉自動上傳');
   }
+  if(e.target.id === 'sync-autopull'){
+    syncCfg.autoPull = e.target.checked;
+    saveSyncCfg();
+    toast(syncCfg.autoPull ? '已開啟自動接收雲端變更' : '已關閉自動接收雲端變更');
+  }
 });
 document.addEventListener('dragover', function(e){
   if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0){
@@ -1652,5 +1702,6 @@ go('overview');
 applyTheme();
 applyAccent();
 setTimeout(checkCloudNewer, 1200);
+startAutoPull();
 
 })();
