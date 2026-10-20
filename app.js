@@ -782,7 +782,7 @@ function openTaskModal(id){
   var t = id ? findTask(id) : null;
   if(id && !t) return;
   var isEdit = !!t;
-  t = t || { id:'', title:'', status:'todo', priority:'mid', due:'', projectId:'', note:'' };
+  t = t || { id:'', title:'', status:'todo', priority:'mid', due: today(), projectId:'', note:'' };
   var h = '<form class="modal" data-form="task" data-id="' + t.id + '">' +
     '<div class="modal-h">' + (isEdit ? '編輯任務' : '新增任務') +
       '<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
@@ -1020,7 +1020,7 @@ function aiConvert(mid, aid){
   m.actionItems.forEach(function(x){ if(x.id === aid) a = x; });
   if(!a || a.convertedTaskId) return;
   var task = {
-    id: uid(), title: a.text, status: 'todo', priority: 'mid', due: null, projectId: null,
+    id: uid(), title: a.text, status: 'todo', priority: 'mid', due: today(), projectId: null,
     note: '來自會議：' + m.title + '（' + fmtMD(m.date) + '）',
     createdAt: today(), completedAt: null
   };
