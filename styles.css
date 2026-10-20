@@ -286,6 +286,20 @@ a{color:var(--accent)}
 .link{color:var(--accent);text-decoration:none;font-weight:600;font-size:12.5px}
 .link:hover{text-decoration:underline}
 
+/* ============ 摸魚區 ============ */
+.link-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.link-card{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer}
+.link-card:hover{border-color:var(--dim)}
+.link-ico{width:42px;height:42px;border-radius:11px;flex:0 0 42px;display:grid;place-items:center;
+  position:relative;overflow:hidden;color:#fff;font-weight:700;font-size:17px}
+.link-ico span{position:relative;z-index:1}
+.link-ico img{position:absolute;inset:7px;width:28px;height:28px;border-radius:6px;background:var(--surface);z-index:2}
+.link-title{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-sub{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-body{min-width:0;flex:1}
+.link-acts{display:flex;gap:6px;flex:0 0 auto;opacity:.7}
+.link-card:hover .link-acts{opacity:1}
+
 /* ============ 圖表 ============ */
 .bars{display:flex;gap:10px;height:110px;align-items:flex-end}
 .bars .b{flex:1;display:flex;align-items:flex-end;height:100%}

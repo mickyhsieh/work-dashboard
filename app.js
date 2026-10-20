@@ -36,7 +36,7 @@ function isOverdue(t){ return t.due && t.status !== 'done' && t.due < today(); }
 var ST = { todo:'待辦', doing:'進行中', done:'完成' };
 var PRI = { high:'高', mid:'中', low:'低' };
 var PRI_RANK = { high:0, mid:1, low:2 };
-var TITLES = { overview:'總覽', tasks:'任務', projects:'專案', meetings:'會議', docs:'文件', stats:'統計', settings:'設定' };
+var TITLES = { overview:'總覽', tasks:'任務', projects:'專案', meetings:'會議', docs:'文件', stats:'統計', fun:'摸魚區', settings:'設定' };
 var LS_KEY = 'wd-v1-state';
 var LS_SYNC = 'wd-sync';
 
@@ -61,7 +61,8 @@ function normalize(obj){
     projects: obj.projects || [],
     meetings: obj.meetings || [],
     docs: obj.docs || [],
-    hours: obj.hours || []
+    hours: obj.hours || [],
+    links: obj.links || []
   };
   o.tasks.forEach(function(t){
     if(!t.status) t.status = 'todo';
@@ -73,6 +74,11 @@ function normalize(obj){
   o.projects.forEach(function(p){ if(!Array.isArray(p.milestones)) p.milestones = []; });
   o.meetings.forEach(function(m){ if(!Array.isArray(m.actionItems)) m.actionItems = []; });
   o.docs.forEach(function(d){ if(!Array.isArray(d.tags)) d.tags = []; });
+  o.links.forEach(function(l){
+    if(l.title == null) l.title = '';
+    if(l.url == null) l.url = '';
+    if(l.note == null) l.note = '';
+  });
   return o;
 }
 function saveState(){
@@ -138,6 +144,11 @@ function seed(){
       { id: uid(), date: addDays(t, -1), projectId: p2, hours: 2, note:'wireframe' },
       { id: uid(), date: addDays(t, -2), projectId: p1, hours: 4, note:'表單文案' },
       { id: uid(), date: addDays(t, -3), projectId: null, hours: 2, note:'會議與紀錄' }
+    ],
+    links: [
+      { id: uid(), title:'YouTube', url:'https://www.youtube.com', note:'休息一下', createdAt:t },
+      { id: uid(), title:'GitHub', url:'https://github.com', note:'逛逛有趣的專案', createdAt:t },
+      { id: uid(), title:'巴哈姆特', url:'https://www.gamer.com.tw', note:'', createdAt:t }
     ]
   };
 }
@@ -147,6 +158,7 @@ function findTask(id){ for(var i=0;i<state.tasks.length;i++) if(state.tasks[i].i
 function findProject(id){ for(var i=0;i<state.projects.length;i++) if(state.projects[i].id===id) return state.projects[i]; return null; }
 function findMeeting(id){ for(var i=0;i<state.meetings.length;i++) if(state.meetings[i].id===id) return state.meetings[i]; return null; }
 function findDoc(id){ for(var i=0;i<state.docs.length;i++) if(state.docs[i].id===id) return state.docs[i]; return null; }
+function findLink(id){ for(var i=0;i<state.links.length;i++) if(state.links[i].id===id) return state.links[i]; return null; }
 function projName(id){ var p = id ? findProject(id) : null; return p ? p.name : ''; }
 
 /* ================= 主題 ================= */
@@ -582,6 +594,54 @@ function renderDocsList(){
   }).join('') + '</div>';
 }
 
+/* ================= 渲染：摸魚區 ================= */
+function normUrl(u){
+  u = String(u || '').trim();
+  if(!u) return '';
+  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = 'https://' + u;
+  return u;
+}
+function urlHost(u){
+  try{ return new URL(u).hostname.replace(/^www\./i, ''); }catch(e){ return ''; }
+}
+function pickColor(s){
+  s = String(s || '?');
+  var sum = 0;
+  for(var i = 0; i < s.length; i++) sum = (sum * 31 + s.charCodeAt(i)) % 360;
+  return 'hsl(' + sum + ', 52%, 42%)';
+}
+function renderFun(){
+  var el = $('#view-fun');
+  var h = '<div class="toolbar">' +
+    '<span class="kbd-note">點卡片直接開新分頁；✎ 編輯、✕ 刪除</span>' +
+    '<button class="btn btn-primary push" data-action="open-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>新增連結</button>' +
+  '</div>';
+  if(!state.links.length){
+    h += '<div class="card"><div class="empty">這裡還空空的 🐟<br>按右上「新增連結」，把平常會逛的網站收進來吧</div></div>';
+  } else {
+    h += '<div class="link-grid">' + state.links.map(function(l){
+      var host = urlHost(l.url);
+      var letter = (l.title || host || '?').trim().charAt(0).toUpperCase();
+      var fav = host ? 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=64' : '';
+      return '<div class="card link-card" data-action="open-link-url" data-url="' + esc(l.url) + '">' +
+        '<div class="link-ico" style="background:' + pickColor(l.title || host) + '">' +
+          '<span>' + esc(letter) + '</span>' +
+          (fav ? '<img src="' + esc(fav) + '" alt="" loading="lazy" onerror="this.remove()">' : '') +
+        '</div>' +
+        '<div class="link-body">' +
+          '<div class="link-title">' + esc(l.title || host || '未命名連結') + '</div>' +
+          '<div class="link-sub">' + (host ? esc(host) : '未設定網址') + (l.note ? '・' + esc(l.note) : '') + '</div>' +
+        '</div>' +
+        '<div class="link-acts">' +
+          '<button type="button" class="ibtn" data-action="open-link" data-id="' + l.id + '" title="編輯">✎</button>' +
+          '<button type="button" class="ibtn" data-action="del-link" data-id="' + l.id + '" title="刪除">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+  el.innerHTML = h;
+}
+
 /* ================= 渲染：統計 ================= */
 function renderStats(){
   var t = today();
@@ -710,6 +770,7 @@ function render(){
   renderProjects();
   renderMeetings();
   renderDocs();
+  renderFun();
   renderStats();
   renderSettings();
   var t = today();
@@ -1014,6 +1075,53 @@ function delDoc(id){
   });
 }
 
+/* ================= 彈窗：摸魚區連結 ================= */
+function openLinkModal(id){
+  var l = id ? findLink(id) : null;
+  if(id && !l) return;
+  var isEdit = !!l;
+  l = l || { id:'', title:'', url:'', note:'' };
+  var h = '<form class="modal" data-form="link" data-id="' + l.id + '">' +
+    '<div class="modal-h">' + (isEdit ? '編輯連結' : '新增連結') +
+      '<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
+    '<div class="modal-b">' +
+      '<div class="field"><label>名稱</label><input name="title" data-autofocus value="' + esc(l.title) + '" placeholder="例如：YouTube"></div>' +
+      '<div class="field"><label>網址</label><input name="url" value="' + esc(l.url) + '" placeholder="https://…（只貼網域也可以）"></div>' +
+      '<div class="field" style="margin-bottom:0"><label>備註（選填）</label><textarea name="note" rows="2" placeholder="為什麼放在這裡…">' + esc(l.note) + '</textarea></div>' +
+    '</div>' +
+    '<div class="modal-f">' +
+      (isEdit ? '<button type="button" class="btn btn-danger" data-action="del-link" data-id="' + l.id + '">刪除</button>' : '') +
+      '<div class="spacer"></div>' +
+      '<button type="button" class="btn btn-ghost" data-action="close-modal">取消</button>' +
+      '<button type="submit" class="btn btn-primary">儲存</button>' +
+    '</div>' +
+  '</form>';
+  openModal(h);
+}
+function saveLinkForm(f){
+  var title = f.elements['title'].value.trim();
+  var url = normUrl(f.elements['url'].value);
+  if(!title){ toast('請輸入名稱'); return; }
+  if(!url){ toast('請輸入網址'); return; }
+  if(!urlHost('' + url)){ toast('網址格式看起來不對，請確認'); return; }
+  var note = f.elements['note'].value.trim();
+  var id = f.dataset.id;
+  if(id){
+    var l = findLink(id);
+    if(!l) return;
+    l.title = title; l.url = url; l.note = note;
+  } else {
+    state.links.push({ id: uid(), title: title, url: url, note: note, createdAt: today() });
+  }
+  saveState(); render(); closeModal(); toast(id ? '已更新連結' : '已新增連結');
+}
+function delLink(id){
+  confirmBox('確定要刪除這個連結嗎？', function(){
+    state.links = state.links.filter(function(l){ return l.id !== id; });
+    saveState(); render(); closeModal(); toast('已刪除連結');
+  });
+}
+
 /* ================= 設定：匯入 / 匯出 ================= */
 function exportJSON(){
   var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -1235,7 +1343,7 @@ function openSearch(){
     '<div class="modal search-modal">' +
       '<div class="search-bar">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
-        '<input id="gsearch" data-autofocus placeholder="搜尋任務、會議、文件、專案…">' +
+        '<input id="gsearch" data-autofocus placeholder="搜尋任務、會議、文件、連結、專案…">' +
       '</div>' +
       '<div id="gresults" style="overflow:auto;max-height:60vh"></div>' +
     '</div>');
@@ -1270,6 +1378,11 @@ function renderSearch(q){
     return (d.title + ' ' + (d.note || '') + ' ' + (d.tags || []).join(' ')).toLowerCase().indexOf(lq) >= 0;
   }).slice(0, 5).map(function(d){
     return '<div class="srow" data-action="open-doc" data-id="' + d.id + '"><span class="st">' + esc(d.title) + '</span><span class="dim">文件</span></div>';
+  }));
+  group('摸魚區', state.links.filter(function(l){
+    return (l.title + ' ' + (l.note || '') + ' ' + (l.url || '')).toLowerCase().indexOf(lq) >= 0;
+  }).slice(0, 5).map(function(l){
+    return '<div class="srow" data-action="open-link-url" data-url="' + esc(l.url) + '"><span class="st">' + esc(l.title) + '</span><span class="dim">連結</span></div>';
   }));
   group('專案', state.projects.filter(function(p){
     var hay = p.name + ' ' + (p.desc || '') + ' ' + (p.milestones || []).map(function(m){ return m.title; }).join(' ');
@@ -1325,6 +1438,19 @@ document.addEventListener('click', function(e){
     case 'del-doc': delDoc(el.dataset.id); break;
     case 'doc-tag': docTag = (docTag === el.dataset.tag) ? '' : el.dataset.tag; renderDocs(); break;
     case 'doc-link': break;
+    case 'open-link': openLinkModal(el.dataset.id || null); break;
+    case 'del-link': delLink(el.dataset.id); break;
+    case 'open-link-url': {
+      var lu = el.dataset.url || '';
+      closeModal();
+      if(lu){
+        var lw = window.open(lu, '_blank');
+        if(lw) lw.opener = null;
+      } else {
+        toast('這個連結還沒有網址，按 ✎ 補上');
+      }
+      break;
+    }
     case 'del-hour': {
       state.hours = state.hours.filter(function(x){ return x.id !== el.dataset.id; });
       commit(); toast('已刪除紀錄');
@@ -1342,7 +1468,7 @@ document.addEventListener('click', function(e){
       break;
     case 'clear-all':
       confirmBox('確定清除所有資料？此動作無法復原，建議先匯出備份。', function(){
-        state = { version: 1, tasks: [], projects: [], meetings: [], docs: [], hours: [] };
+        state = { version: 1, tasks: [], projects: [], meetings: [], docs: [], hours: [], links: [] };
         saveState(); render(); toast('已清除所有資料');
       });
       break;
@@ -1376,6 +1502,7 @@ document.addEventListener('submit', function(e){
   else if(kind === 'project') saveProjectForm(f);
   else if(kind === 'meeting') saveMeetingForm(f);
   else if(kind === 'doc') saveDocForm(f);
+  else if(kind === 'link') saveLinkForm(f);
   else if(kind === 'hours'){
     var d = f.elements['date'].value || today();
     var hrs = parseFloat(f.elements['hours'].value);
