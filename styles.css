@@ -308,6 +308,49 @@ a{color:var(--accent)}
 .blabels{display:flex;gap:10px;margin-top:8px}
 .blabels em{flex:1;text-align:center;font-style:normal;font-size:10.5px;color:var(--dim)}
 
+/* ============ 工作報表 ============ */
+.stats-toolbar{margin-bottom:14px}
+.stats-tabs{width:220px}
+.stats-tabs button{font-size:12.5px;padding:6px 0}
+.report-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.report-range{flex:0 0 132px}
+.report-range button{padding:6px 0}
+.report-nav{display:flex;align-items:center;gap:6px;flex:1;min-width:210px;max-width:380px}
+.report-nav .rl{flex:1;min-width:0;text-align:center;line-height:1.25}
+.report-nav .rl b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.report-nav .rl small{display:block;font-size:10.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.report-nav .btn{padding:5px 10px;font-size:12px}
+.report-acts{display:flex;gap:8px}
+.report-acts .btn{padding:6px 12px;font-size:12px}
+.report-kpis{margin-bottom:14px}
+.report-mini{display:grid;grid-template-columns:repeat(3,1fr);padding:12px 16px;margin-bottom:14px}
+.report-mini .rm{display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 8px;border-right:1px solid var(--border);min-width:0}
+.report-mini .rm:last-child{border-right:0}
+.report-mini .rm b{font-size:20px;line-height:1.25;font-weight:700}
+.report-mini .rm b em{font-style:normal;font-size:12px;color:var(--dim);font-weight:400}
+.report-mini .rm span{font-size:11px;color:var(--dim);text-align:center}
+.report-section{margin-bottom:14px}
+.report-note{font-size:11.5px;color:var(--dim);margin:-4px 2px 14px}
+.rep-ico{width:17px;height:17px;flex:0 0 17px;border-radius:50%;border:1.5px solid var(--border);display:inline-grid;place-items:center;font-size:10px;color:var(--dim);line-height:1}
+.rep-ico.ok{background:var(--green);border-color:var(--green);color:#fff}
+.rep-meet{border-bottom:1px solid var(--border)}
+.rep-meet:last-child{border-bottom:0}
+.rep-meet-h{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer}
+.rep-meet-h:hover{background:var(--surface-2)}
+.rep-mdate{flex:0 0 46px;text-align:center;font-size:11px;color:var(--dim);line-height:1.2}
+.rep-mdate small{display:block;font-size:10px}
+.rep-mtitle{flex:1;min-width:0;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rep-ais{padding:0 16px 6px 72px}
+.rep-ais .aitem{padding:6px 0;font-size:12.5px}
+.rep-prow{display:grid;grid-template-columns:minmax(0,1fr) 52px 58px 48px;gap:8px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--border);font-size:12.5px}
+.rep-prow:last-child{border-bottom:0}
+.rep-prow .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rep-prow .v{text-align:right;color:var(--dim);font-size:11.5px}
+.rep-prow .v b{color:var(--text);font-size:13px;font-weight:600}
+.rep-phead{background:var(--surface-2);padding-top:7px;padding-bottom:7px;font-size:11px;color:var(--dim)}
+.rep-phead .v{font-size:10.5px}
+.rep-ptotal{background:var(--surface-2);font-weight:600}
+
 /* ============ 其他 ============ */
 .empty{padding:26px 12px;text-align:center;color:var(--dim);font-size:12.5px}
 .prow{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px}
@@ -458,6 +501,19 @@ textarea{resize:vertical;line-height:1.5}
   .card-h{padding:11px 14px}
   .card-b{padding:12px 14px}
   .cal{padding:10px 12px;gap:5px}
+
+  /* 統計／工作報表 */
+  .stats-toolbar .stats-tabs{width:100%}
+  .report-bar{gap:8px}
+  .report-range{flex:0 0 116px}
+  .report-nav{flex:1 1 180px;min-width:0}
+  .report-acts{flex:1 1 100%;margin-left:0}
+  .report-acts .btn{flex:1;justify-content:center}
+  .report-mini{padding:10px 6px}
+  .report-mini .rm{padding:2px 4px}
+  .report-mini .rm b{font-size:18px}
+  .rep-ais{padding-left:16px}
+  .rep-prow{grid-template-columns:minmax(0,1fr) 44px 50px 44px;padding-left:14px;padding-right:14px}
 }
 @media (max-width:430px){
   .kpis{gap:10px}
@@ -466,4 +522,9 @@ textarea{resize:vertical;line-height:1.5}
   .donut{width:40px;height:40px;flex:0 0 40px}
   .nav a{font-size:10px;padding:5px 0}
   .topbar .btn-primary{padding:7px 10px}
+
+  /* 統計／工作報表 */
+  .report-range{flex-basis:104px}
+  .report-nav .rl b{font-size:12px}
+  .report-nav .rl small{font-size:10px}
 }

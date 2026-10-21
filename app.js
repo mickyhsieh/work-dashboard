@@ -72,8 +72,17 @@ function normalize(obj){
     if(t.projectId === undefined) t.projectId = null;
     if(t.note == null) t.note = '';
   });
-  o.projects.forEach(function(p){ if(!Array.isArray(p.milestones)) p.milestones = []; });
-  o.meetings.forEach(function(m){ if(!Array.isArray(m.actionItems)) m.actionItems = []; });
+  o.projects.forEach(function(p){
+    if(!Array.isArray(p.milestones)) p.milestones = [];
+    p.milestones.forEach(function(m){ if(m.doneAt === undefined) m.doneAt = null; });
+  });
+  o.meetings.forEach(function(m){
+    if(!Array.isArray(m.actionItems)) m.actionItems = [];
+    m.actionItems.forEach(function(a){
+      if(a.doneAt === undefined) a.doneAt = null;
+      if(a.convertedTaskId === undefined) a.convertedTaskId = null;
+    });
+  });
   o.docs.forEach(function(d){ if(!Array.isArray(d.tags)) d.tags = []; });
   o.links.forEach(function(l){
     if(l.title == null) l.title = '';
@@ -99,12 +108,12 @@ function seed(){
     projects: [
       { id: p1, name: '青廣招生計畫', desc: '年度招生：簡章、表單、宣傳、面談', createdAt: t,
         milestones: [
-          { title:'簡章定稿', done:true }, { title:'報名表單上線', done:true },
+          { title:'簡章定稿', done:true, doneAt: addDays(t, -9) }, { title:'報名表單上線', done:true, doneAt: addDays(t, -2) },
           { title:'宣傳開跑', done:false }, { title:'面談', done:false }, { title:'公告錄取', done:false }
         ] },
       { id: p2, name: '官網改版', desc: '品牌更新、首頁重設計', createdAt: t,
         milestones: [
-          { title:'Wireframe', done:true }, { title:'視覺設計', done:false },
+          { title:'Wireframe', done:true, doneAt: addDays(t, -7) }, { title:'視覺設計', done:false },
           { title:'前端開發', done:false }, { title:'內容搬遷', done:false }, { title:'上線', done:false }
         ] }
     ],
@@ -115,8 +124,8 @@ function seed(){
       { id: uid(), title:'整理卓青會議逐字稿行動項', status:'todo', priority:'mid', due: t, projectId: null, note:'逐字稿已產生，待轉成任務', createdAt:t, completedAt:null },
       { id: uid(), title:'回覆信件退信名單清理結果', status:'todo', priority:'low', due: addDays(t, 1), projectId: null, note:'', createdAt:t, completedAt:null },
       { id: uid(), title:'志工培訓簡報 v2 大綱', status:'todo', priority:'mid', due: addDays(t, 3), projectId: null, note:'', createdAt:t, completedAt:null },
-      { id: uid(), title:'卓青名單彙整', status:'done', priority:'mid', due: addDays(t, -3), projectId: p1, note:'', createdAt:t, completedAt: addDays(t, -3) },
-      { id: uid(), title:'會議紀錄歸檔', status:'done', priority:'low', due: addDays(t, -4), projectId: null, note:'', createdAt:t, completedAt: addDays(t, -4) }
+      { id: uid(), title:'卓青名單彙整', status:'done', priority:'mid', due: addDays(t, -3), projectId: p1, note:'', createdAt:t, completedAt: addDays(t, -1) },
+      { id: uid(), title:'會議紀錄歸檔', status:'done', priority:'low', due: addDays(t, -4), projectId: null, note:'', createdAt:t, completedAt: addDays(t, -2) }
     ],
     meetings: [
       { id: uid(), title:'卓青籌備會議', date: addDays(t, 2), time:'14:00', location:'會議室', attendees:'5 人',
@@ -124,7 +133,7 @@ function seed(){
         actionItems:[
           { id: uid(), text:'確認場地佈置分工', done:false, convertedTaskId:null },
           { id: uid(), text:'更新報名表單文案', done:false, convertedTaskId:null },
-          { id: uid(), text:'通知志工時間', done:true, convertedTaskId:null }
+          { id: uid(), text:'通知志工時間', done:true, doneAt: addDays(t, -1), convertedTaskId:null }
         ] },
       { id: uid(), title:'官網改版討論', date: addDays(t, 4), time:'10:00', location:'線上', attendees:'3 人',
         notes:'議程待排', actionItems:[] },
@@ -472,7 +481,9 @@ function renderProjects(){
 function toggleMilestone(pid, idx){
   var p = findProject(pid);
   if(!p || !p.milestones[idx]) return;
-  p.milestones[idx].done = !p.milestones[idx].done;
+  var m = p.milestones[idx];
+  m.done = !m.done;
+  m.doneAt = m.done ? today() : null;
   commit();
 }
 
@@ -645,7 +656,25 @@ function renderFun(){
 }
 
 /* ================= 渲染：統計 ================= */
+var statsTab = 'hours';
+try{
+  var savedStatsTab = localStorage.getItem('wd-stats-tab');
+  if(savedStatsTab === 'report' || savedStatsTab === 'hours') statsTab = savedStatsTab;
+}catch(e){}
+var reportRangeMode = 'week';
+var reportAnchor = today();
+
+function statsTabsHTML(){
+  return '<div class="toolbar stats-toolbar"><div class="seg stats-tabs">' +
+    [['hours','工時統計'],['report','工作報表']].map(function(o){
+      return '<button type="button" class="' + (statsTab === o[0] ? 'on' : '') + '" data-action="stats-tab" data-val="' + o[0] + '">' + o[1] + '</button>';
+    }).join('') +
+  '</div></div>';
+}
 function renderStats(){
+  $('#view-stats').innerHTML = statsTabsHTML() + (statsTab === 'report' ? reportStatsHTML() : hoursStatsHTML());
+}
+function hoursStatsHTML(){
   var t = today();
   var ws = startOfWeek(t);
   var days = [];
@@ -720,7 +749,414 @@ function renderStats(){
   }
   h += '</div>';
 
-  $('#view-stats').innerHTML = h;
+  return h;
+}
+
+/* ================= 渲染：工作報表 ================= */
+function fmtYMD(s){ var d = parseD(s); return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()); }
+function fmtNum(n){ return Math.round((+n || 0) * 10) / 10; }
+function overdueDays(due){
+  var n = Math.round((parseD(today()) - parseD(due)) / 86400000);
+  return n > 0 ? n : 0;
+}
+function reportRange(){
+  var mode = reportRangeMode;
+  var a = reportAnchor || today();
+  var s, e, label, sub;
+  if(mode === 'day'){
+    s = e = a;
+    label = fmtYMD(a) + '（週' + wdName(a) + '）';
+    sub = '共 1 天';
+  } else if(mode === 'month'){
+    s = a.slice(0, 7) + '-01';
+    var d0 = parseD(s);
+    var last = new Date(d0.getFullYear(), d0.getMonth() + 1, 0);
+    e = ymd(last);
+    label = d0.getFullYear() + ' 年 ' + (d0.getMonth() + 1) + ' 月';
+    sub = fmtMD(s) + ' ～ ' + fmtMD(e) + '・共 ' + last.getDate() + ' 天';
+  } else {
+    s = startOfWeek(a);
+    e = addDays(s, 6);
+    label = fmtYMD(s) + ' ～ ' + (parseD(s).getFullYear() === parseD(e).getFullYear() ? fmtMD(e) : fmtYMD(e));
+    sub = '週一～週日・共 7 天';
+  }
+  return { mode: mode, start: s, end: e, label: label, sub: sub };
+}
+function inReportRange(d, r){ return !!d && d >= r.start && d <= r.end; }
+function meetingStatus(m){
+  var t = today();
+  if(m.date < t) return '已舉行';
+  if(m.date === t) return '今天';
+  return '預定';
+}
+function buildReport(){
+  var r = reportRange();
+  var t = today();
+  var done = [], created = [], openDue = [], overdue = [], noDue = [], hours = [];
+  state.tasks.forEach(function(x){
+    if(x.completedAt && inReportRange(x.completedAt, r)) done.push(x);
+    if(x.createdAt && inReportRange(x.createdAt, r)) created.push(x);
+    if(x.status !== 'done' && x.due && inReportRange(x.due, r)) openDue.push(x);
+    if(x.status !== 'done' && x.due && x.due < t) overdue.push(x);
+    if(x.status !== 'done' && !x.due) noDue.push(x);
+  });
+  state.hours.forEach(function(x){ if(inReportRange(x.date, r)) hours.push(x); });
+
+  done.sort(function(a, b){
+    var ac = String(a.completedAt || ''), bc = String(b.completedAt || '');
+    if(ac !== bc) return ac < bc ? 1 : -1;
+    return PRI_RANK[a.priority] - PRI_RANK[b.priority];
+  });
+  openDue.sort(function(a, b){
+    var ad = a.due || '9999-12-31', bd = b.due || '9999-12-31';
+    if(ad !== bd) return ad < bd ? -1 : 1;
+    return PRI_RANK[a.priority] - PRI_RANK[b.priority];
+  });
+  overdue.sort(function(a, b){ return String(a.due).localeCompare(String(b.due)); });
+  hours.sort(function(a, b){ return String(b.date).localeCompare(String(a.date)); });
+
+  var meetings = state.meetings.filter(function(m){ return inReportRange(m.date, r); })
+    .sort(function(a, b){ return (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')); });
+
+  var aiTotal = 0, aiDone = 0;
+  meetings.forEach(function(m){
+    (m.actionItems || []).forEach(function(a){
+      aiTotal++;
+      if(a.done) aiDone++;
+    });
+  });
+
+  var msDone = [], msOpen = [], hasLegacyMsDone = false;
+  state.projects.forEach(function(p){
+    (p.milestones || []).forEach(function(m, idx){
+      if(m.done && !m.doneAt) hasLegacyMsDone = true;
+      if(m.done && m.doneAt && inReportRange(m.doneAt, r)) msDone.push({ p: p, m: m, idx: idx });
+      if(!m.done) msOpen.push({ p: p, m: m, idx: idx });
+    });
+  });
+  msDone.sort(function(a, b){ return String(b.m.doneAt).localeCompare(String(a.m.doneAt)); });
+
+  var totalHours = 0, hourSet = {};
+  hours.forEach(function(x){ totalHours += (+x.hours || 0); hourSet[x.date] = 1; });
+
+  var denom = done.length + openDue.length;
+  var rate = denom ? Math.round(100 * done.length / denom) : 0;
+
+  var buckets = {};
+  state.projects.forEach(function(p){
+    buckets[p.id] = { id: p.id, name: p.name, done: 0, open: 0, hours: 0 };
+  });
+  function bucket(pid){
+    if(pid && buckets[pid]) return buckets[pid];
+    if(!buckets['']) buckets[''] = { id: '', name: '（無專案）', done: 0, open: 0, hours: 0 };
+    return buckets[''];
+  }
+  done.forEach(function(x){ bucket(x.projectId).done++; });
+  openDue.forEach(function(x){ bucket(x.projectId).open++; });
+  hours.forEach(function(x){ bucket(x.projectId).hours += (+x.hours || 0); });
+
+  var byProject = state.projects.map(function(p){ return buckets[p.id]; })
+    .filter(function(p){ return p.done || p.open || p.hours; });
+  if(buckets[''] && (buckets[''].done || buckets[''].open || buckets[''].hours)) byProject.push(buckets['']);
+
+  return {
+    range: r, done: done, created: created, openDue: openDue, overdue: overdue,
+    noDue: noDue, hours: hours, totalHours: totalHours, hourDays: Object.keys(hourSet).length,
+    meetings: meetings, aiTotal: aiTotal, aiDone: aiDone,
+    msDone: msDone, msOpen: msOpen, hasLegacyMsDone: hasLegacyMsDone,
+    byProject: byProject, rate: rate
+  };
+}
+function reportTaskRow(x, doneMode){
+  var sub = [];
+  if(doneMode){
+    if(x.completedAt) sub.push(fmtMD(x.completedAt) + ' 完成');
+  } else if(x.due){
+    var od = overdueDays(x.due);
+    if(od > 0) sub.push('<span class="od">' + fmtMD(x.due) + ' 到期・逾 ' + od + ' 天</span>');
+    else if(x.due === today()) sub.push('今天到期');
+    else sub.push(fmtMD(x.due) + ' 到期');
+  }
+  if(x.projectId && projName(x.projectId)) sub.push(esc(projName(x.projectId)));
+  return '<div class="trow" data-action="open-task" data-id="' + x.id + '">' +
+    '<span class="rep-ico' + (doneMode ? ' ok' : '') + '">' + (doneMode ? '✓' : '') + '</span>' +
+    '<span class="t">' + esc(x.title) + '<small>' + sub.join('・') + '</small></span>' +
+    pillPRI(x.priority) + '</div>';
+}
+function reportStatsHTML(){
+  var R = buildReport();
+  var r = R.range;
+  var h = '';
+
+  h += '<div class="report-bar">';
+  h += '<div class="seg report-range">' + [['day','日'],['week','週'],['month','月']].map(function(o){
+    return '<button type="button" class="' + (r.mode === o[0] ? 'on' : '') + '" data-action="report-range" data-val="' + o[0] + '">' + o[1] + '</button>';
+  }).join('') + '</div>';
+  h += '<div class="report-nav">' +
+    '<button type="button" class="ibtn" data-action="report-prev" title="上一段">‹</button>' +
+    '<span class="rl"><b>' + esc(r.label) + '</b><small>' + esc(r.sub) + '</small></span>' +
+    '<button type="button" class="ibtn" data-action="report-next" title="下一段">›</button>' +
+    '<button type="button" class="btn btn-ghost" data-action="report-today">今天</button>' +
+  '</div>';
+  h += '<div class="report-acts push">' +
+    '<button type="button" class="btn btn-ghost" data-action="report-copy">複製摘要</button>' +
+    '<button type="button" class="btn btn-ghost" data-action="report-csv">CSV</button>' +
+  '</div>';
+  h += '</div>';
+
+  h += '<div class="kpis report-kpis">';
+  h += '<div class="card kpi"><div><div class="l">任務完成<small>期間新增 ' + R.created.length + ' 件</small></div></div><div class="n">' + R.done.length + '</div></div>';
+  h += '<div class="card kpi"><div><div class="l">到期未完成<small>' + (R.overdue.length ? '目前逾期（全部）' + R.overdue.length + ' 件' : '沒有逾期') + '</small></div></div><div class="n' + (R.openDue.length ? ' red' : '') + '">' + R.openDue.length + '</div></div>';
+  h += '<div class="card kpi"><div><div class="l">完成率<small>完成 ' + R.done.length + ' / 應處理 ' + (R.done.length + R.openDue.length) + '</small></div></div><div class="n">' + R.rate + '<span style="font-size:13px;font-weight:400">%</span></div></div>';
+  h += '<div class="card kpi"><div><div class="l">工時<small>' + R.hourDays + ' 天有紀錄</small></div></div><div class="n">' + fmtNum(R.totalHours) + '<span style="font-size:13px;font-weight:400"> 小時</span></div></div>';
+  h += '</div>';
+
+  h += '<div class="report-mini card">' +
+    '<div class="rm"><b>' + R.meetings.length + '</b><span>會議場次</span></div>' +
+    '<div class="rm"><b>' + R.aiDone + '<em>/' + R.aiTotal + '</em></b><span>行動項完成</span></div>' +
+    '<div class="rm"><b>' + R.msDone.length + '</b><span>里程碑完成</span></div>' +
+  '</div>';
+
+  h += '<div class="grid-eq report-section">';
+  h += '<div class="card"><div class="card-h"><span>已完成任務 <span class="cnt">' + R.done.length + '</span></span></div>';
+  if(R.done.length) R.done.forEach(function(x){ h += reportTaskRow(x, true); });
+  else h += '<div class="empty">這段期間還沒有完成的任務</div>';
+  h += '</div>';
+  h += '<div class="card"><div class="card-h"><span>到期未完成 <span class="cnt">' + R.openDue.length + '</span></span></div>';
+  if(R.openDue.length) R.openDue.forEach(function(x){ h += reportTaskRow(x, false); });
+  else h += '<div class="empty">這段期間沒有到期未完成的任務</div>';
+  h += '</div></div>';
+  h += '<div class="report-note">完成數依「完成日」；未完成依「到期日」且以目前狀態計算。兩者分母不同，分開呈現、不混算。</div>';
+  if(R.noDue.length) h += '<div class="report-note">另有 ' + R.noDue.length + ' 項未完成任務沒有到期日，不列入期間統計（可到任務頁補上）。</div>';
+
+  h += '<div class="card report-section">';
+  h += '<div class="card-h"><span>會議與行動項 <span class="cnt">' + R.meetings.length + ' 場・行動項 ' + R.aiDone + '/' + R.aiTotal + '</span></span></div>';
+  if(R.meetings.length){
+    R.meetings.forEach(function(m){
+      var items = m.actionItems || [];
+      var md = items.filter(function(a){ return a.done; }).length;
+      h += '<div class="rep-meet">';
+      h += '<div class="rep-meet-h" data-action="open-meeting" data-id="' + m.id + '">' +
+        '<span class="rep-mdate">' + fmtMD(m.date) + '<small>週' + wdName(m.date) + '</small></span>' +
+        '<span class="rep-mtitle">' + esc(m.title) + '</span>' +
+        (items.length ? '<span class="pill ' + (md === items.length ? 'p-done' : 'p-info') + '">' + md + '/' + items.length + '</span>' : '<span class="dim">無行動項</span>') +
+      '</div>';
+      if(items.length){
+        h += '<div class="rep-ais">';
+        items.forEach(function(a){
+          h += '<div class="aitem">' +
+            '<span class="check' + (a.done ? ' done' : '') + '" data-action="ai-toggle" data-mid="' + m.id + '" data-ai="' + a.id + '"></span>' +
+            '<span class="ai-text' + (a.done ? ' done' : '') + '">' + esc(a.text) + '</span>' +
+            (a.done && a.doneAt ? '<span class="dim">' + fmtMD(a.doneAt) + '</span>' : '') +
+          '</div>';
+        });
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+  } else {
+    h += '<div class="empty">這段期間沒有會議</div>';
+  }
+  h += '</div>';
+
+  h += '<div class="grid-eq report-section">';
+  h += '<div class="card"><div class="card-h"><span>里程碑完成 <span class="cnt">' + R.msDone.length + '</span></span></div>';
+  if(R.msDone.length){
+    R.msDone.forEach(function(it){
+      h += '<div class="trow" data-action="open-project" data-id="' + it.p.id + '">' +
+        '<span class="check done" data-action="toggle-ms" data-pid="' + it.p.id + '" data-idx="' + it.idx + '" title="點擊取消完成"></span>' +
+        '<span class="t">' + esc(it.m.title) + '<small>' + esc(it.p.name) + '・' + fmtMD(it.m.doneAt) + ' 完成</small></span>' +
+      '</div>';
+    });
+  } else {
+    h += '<div class="empty">這段期間沒有完成的里程碑</div>';
+  }
+  if(R.hasLegacyMsDone) h += '<div class="card-f kbd-note">完成日自 v1.2 開始記錄；較早完成的里程碑不會列入期間統計。</div>';
+  h += '</div>';
+  h += '<div class="card"><div class="card-h"><span>目前未完成 <span class="cnt">全部專案</span></span></div>';
+  if(R.msOpen.length){
+    R.msOpen.forEach(function(it){
+      h += '<div class="trow" data-action="open-project" data-id="' + it.p.id + '">' +
+        '<span class="check" data-action="toggle-ms" data-pid="' + it.p.id + '" data-idx="' + it.idx + '" title="點擊標記完成"></span>' +
+        '<span class="t">' + esc(it.m.title) + '<small>' + esc(it.p.name) + '</small></span>' +
+      '</div>';
+    });
+  } else {
+    h += '<div class="empty">所有里程碑都完成了</div>';
+  }
+  h += '</div></div>';
+
+  h += '<div class="card report-section">';
+  h += '<div class="card-h"><span>依專案 <span class="cnt">完成／到期未完成／工時</span></span></div>';
+  if(R.byProject.length){
+    h += '<div class="rep-prow rep-phead"><span class="nm">專案</span><span class="v">完成</span><span class="v">未完成</span><span class="v">工時</span></div>';
+    R.byProject.forEach(function(p){
+      h += '<div class="rep-prow"><span class="nm">' + esc(p.name) + '</span>' +
+        '<span class="v"><b>' + p.done + '</b></span>' +
+        '<span class="v"><b>' + p.open + '</b></span>' +
+        '<span class="v"><b>' + fmtNum(p.hours) + '</b></span></div>';
+    });
+    h += '<div class="rep-prow rep-ptotal"><span class="nm">合計</span>' +
+      '<span class="v"><b>' + R.done.length + '</b></span>' +
+      '<span class="v"><b>' + R.openDue.length + '</b></span>' +
+      '<span class="v"><b>' + fmtNum(R.totalHours) + '</b></span></div>';
+  } else {
+    h += '<div class="empty">這段期間沒有專案活動</div>';
+  }
+  h += '</div>';
+
+  return h;
+}
+function shiftReport(dir){
+  var a = reportAnchor || today();
+  if(reportRangeMode === 'day'){ reportAnchor = addDays(a, dir); return; }
+  if(reportRangeMode === 'week'){ reportAnchor = addDays(a, 7 * dir); return; }
+  var d = parseD(a);
+  var target = new Date(d.getFullYear(), d.getMonth() + dir, 1);
+  var last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  reportAnchor = ymd(new Date(target.getFullYear(), target.getMonth(), Math.min(d.getDate(), last)));
+}
+function reportSummaryText(R){
+  var kind = R.range.mode === 'day' ? '工作日報' : (R.range.mode === 'month' ? '工作月報' : '工作週報');
+  var lines = [];
+  lines.push(kind + ' ' + R.range.label);
+  lines.push('任務完成 ' + R.done.length + '（新增 ' + R.created.length + '）｜到期未完成 ' + R.openDue.length + '｜完成率 ' + R.rate + '%');
+  if(R.overdue.length) lines.push('目前逾期（全部）' + R.overdue.length + ' 件');
+  if(R.noDue.length) lines.push('另有 ' + R.noDue.length + ' 項未完成任務沒有到期日');
+  lines.push('工時 ' + fmtNum(R.totalHours) + ' 小時（' + R.hourDays + ' 天）｜會議 ' + R.meetings.length + ' 場｜行動項 ' + R.aiDone + '/' + R.aiTotal);
+
+  if(R.done.length){
+    lines.push('');
+    lines.push('【已完成任務】');
+    R.done.forEach(function(x){
+      lines.push('- ' + x.title + '（' + (projName(x.projectId) || '無專案') + '）' + (x.completedAt ? ' ' + fmtMD(x.completedAt) : ''));
+    });
+  }
+  if(R.openDue.length){
+    lines.push('');
+    lines.push('【到期未完成】');
+    R.openDue.forEach(function(x){
+      var od = overdueDays(x.due);
+      lines.push('- ' + x.title + '（' + (projName(x.projectId) || '無專案') + '）' + fmtMD(x.due) + (od ? '，逾期 ' + od + ' 天' : ''));
+    });
+  }
+  if(R.meetings.length){
+    lines.push('');
+    lines.push('【會議】');
+    R.meetings.forEach(function(m){
+      var its = m.actionItems || [];
+      var md = its.filter(function(a){ return a.done; }).length;
+      lines.push('- ' + fmtMD(m.date) + ' ' + m.title + (its.length ? '（行動項 ' + md + '/' + its.length + '）' : ''));
+    });
+  }
+  var aiLines = [];
+  R.meetings.forEach(function(m){
+    (m.actionItems || []).forEach(function(a){
+      aiLines.push('- [' + (a.done ? 'x' : ' ') + '] ' + a.text + '（' + m.title + '）');
+    });
+  });
+  if(aiLines.length){
+    lines.push('');
+    lines.push('【行動項】');
+    lines = lines.concat(aiLines);
+  }
+  if(R.msDone.length){
+    lines.push('');
+    lines.push('【期間完成里程碑】');
+    R.msDone.forEach(function(it){ lines.push('- ' + it.m.title + '（' + it.p.name + '）' + fmtMD(it.m.doneAt)); });
+  }
+  if(R.msOpen.length){
+    lines.push('');
+    lines.push('【目前未完成里程碑】');
+    R.msOpen.forEach(function(it){ lines.push('- ' + it.m.title + '（' + it.p.name + '）'); });
+  }
+  if(R.byProject.length){
+    lines.push('');
+    lines.push('【依專案】');
+    R.byProject.forEach(function(p){
+      lines.push('- ' + p.name + '：完成 ' + p.done + '／未完成 ' + p.open + '／工時 ' + fmtNum(p.hours));
+    });
+  }
+  return lines.join('\n');
+}
+function fallbackCopy(text){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  var ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){}
+  ta.remove();
+  if(ok) toast('已複製工作報表摘要');
+  else showCopyModal(text);
+}
+function showCopyModal(text){
+  openModal('<div class="modal" style="max-width:640px">' +
+    '<div class="modal-h">工作報表摘要<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
+    '<div class="modal-b"><p class="kbd-note" style="margin-top:0">瀏覽器不允許自動複製，請全選下面文字後按 Ctrl+C（Mac：⌘C）。</p>' +
+      '<textarea rows="14" readonly data-autofocus>' + esc(text) + '</textarea></div>' +
+    '<div class="modal-f"><div class="spacer"></div><button type="button" class="btn btn-ghost" data-action="close-modal">關閉</button></div>' +
+  '</div>');
+  var ta = $('#modal-root textarea');
+  if(ta) setTimeout(function(){ ta.focus(); ta.select(); }, 30);
+}
+function copyReportSummary(){
+  var text = reportSummaryText(buildReport());
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    try{
+      navigator.clipboard.writeText(text).then(function(){ toast('已複製工作報表摘要'); }, function(){ fallbackCopy(text); });
+      return;
+    }catch(e){}
+  }
+  fallbackCopy(text);
+}
+function csvCell(v){
+  return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+}
+function downloadText(filename, text, mime){
+  var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+}
+function exportReportCSV(){
+  var R = buildReport();
+  var rows = [['類型','專案','名稱','狀態','日期','到期日','完成日','備註']];
+  R.done.forEach(function(x){
+    rows.push(['任務', projName(x.projectId) || '（無專案）', x.title, '完成', x.completedAt || '', x.due || '', x.completedAt || '', x.note || '']);
+  });
+  R.openDue.forEach(function(x){
+    rows.push(['任務', projName(x.projectId) || '（無專案）', x.title, ST[x.status] || '', x.due || '', x.due || '', '', x.note || '']);
+  });
+  R.meetings.forEach(function(m){
+    rows.push(['會議', '', m.title, meetingStatus(m), m.date, '', '', [m.time, m.location].filter(function(v){ return v; }).join(' ')]);
+  });
+  R.meetings.forEach(function(m){
+    (m.actionItems || []).forEach(function(a){
+      rows.push(['行動項', '', a.text, a.done ? '完成' : '未完成', m.date, '', a.doneAt || '', '會議：' + m.title]);
+    });
+  });
+  R.msDone.forEach(function(it){
+    rows.push(['里程碑', it.p.name, it.m.title, '完成', it.m.doneAt || '', '', it.m.doneAt || '', '期間完成']);
+  });
+  R.msOpen.forEach(function(it){
+    rows.push(['里程碑', it.p.name, it.m.title, '未完成', '', '', '', '目前未完成（全部專案）']);
+  });
+  R.hours.forEach(function(x){
+    rows.push(['工時', projName(x.projectId) || '（無專案）', x.note || '工時紀錄', '', x.date, '', '', x.hours + ' 小時']);
+  });
+  var csv = '\uFEFF' + rows.map(function(row){ return row.map(csvCell).join(','); }).join('\r\n');
+  var name = '工作報表_' + R.range.mode + '_' + R.range.start + (R.range.end !== R.range.start ? '_' + R.range.end : '') + '.csv';
+  downloadText(name, csv, 'text/csv;charset=utf-8');
+  toast('已匯出 CSV');
 }
 
 /* ================= 渲染：設定 ================= */
@@ -757,7 +1193,7 @@ function renderSettings(){
   h += '<div class="prow">Outlook / 信件 <span class="dim">摘要與待辦萃取</span><span class="pill p-low push">v2</span></div>';
   h += '</div>';
   h += '<div class="card"><div class="card-h">關於</div><div class="card-b">';
-  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.1・純前端、無依賴・支援 Supabase 雲端同步</p>';
+  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.2・純前端、無依賴・支援 Supabase 雲端同步</p>';
   h += '<p class="kbd-note" style="margin:0">部署：將此資料夾上傳到 GitHub repo，開啟 Pages（main / root）即可上線，詳見 README.md。</p>';
   h += '</div></div>';
   h += '</div></div>';
@@ -885,7 +1321,7 @@ function saveProjectForm(f){
   var ms = lines.map(function(title){
     var prev = null;
     for(var i = 0; i < oldMs.length; i++){ if(oldMs[i].title === title) prev = oldMs[i]; }
-    return { title: title, done: prev ? !!prev.done : false };
+    return { title: title, done: prev ? !!prev.done : false, doneAt: prev && prev.done ? (prev.doneAt || null) : null };
   });
   if(old){
     old.name = name; old.desc = desc; old.milestones = ms;
@@ -999,6 +1435,7 @@ function aiToggle(mid, aid){
   m.actionItems.forEach(function(x){ if(x.id === aid) a = x; });
   if(!a) return;
   a.done = !a.done;
+  a.doneAt = a.done ? today() : null;
   saveState(); refreshActions(mid); render();
 }
 function aiDel(mid, aid){
@@ -1013,7 +1450,7 @@ function aiAdd(mid){
   var inp = $('#ai-new'); if(!inp) return;
   var text = inp.value.trim();
   if(!text) return;
-  m.actionItems.push({ id: uid(), text: text, done: false, convertedTaskId: null });
+  m.actionItems.push({ id: uid(), text: text, done: false, doneAt: null, convertedTaskId: null });
   saveState(); refreshActions(mid); render();
 }
 function aiConvert(mid, aid){
@@ -1550,6 +1987,20 @@ document.addEventListener('click', function(e){
       commit(); toast('已刪除紀錄');
       break;
     }
+    case 'stats-tab':
+      statsTab = el.dataset.val === 'report' ? 'report' : 'hours';
+      try{ localStorage.setItem('wd-stats-tab', statsTab); }catch(err){}
+      renderStats();
+      break;
+    case 'report-range':
+      reportRangeMode = el.dataset.val === 'day' || el.dataset.val === 'month' ? el.dataset.val : 'week';
+      renderStats();
+      break;
+    case 'report-prev': shiftReport(-1); renderStats(); break;
+    case 'report-next': shiftReport(1); renderStats(); break;
+    case 'report-today': reportAnchor = today(); renderStats(); break;
+    case 'report-copy': copyReportSummary(); break;
+    case 'report-csv': exportReportCSV(); break;
     case 'export-json': exportJSON(); break;
     case 'import-json': { var fi = $('#import-file'); if(fi) fi.click(); break; }
     case 'sync-test': sbTest(); break;
