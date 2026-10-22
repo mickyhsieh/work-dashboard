@@ -19,6 +19,27 @@ function ymd(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pa
 function today(){ return ymd(new Date()); }
 function parseD(s){ var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
 function addDays(s, n){ var d = parseD(s); d.setDate(d.getDate() + n); return ymd(d); }
+function dayDiff(a, b){ return Math.round((parseD(b) - parseD(a)) / 86400000); }
+function eventEnd(ev){ return (ev && ev.endDate && ev.endDate >= ev.date) ? ev.endDate : (ev ? ev.date : ''); }
+function eventDays(ev){ return (ev && ev.date) ? Math.max(1, dayDiff(ev.date, eventEnd(ev)) + 1) : 1; }
+function eventRangeLabel(ev){
+  if(!ev || !ev.date) return '';
+  var end = eventEnd(ev);
+  if(end && end !== ev.date) return fmtMD(ev.date) + '–' + fmtMD(end) + '・' + eventDays(ev) + ' 天';
+  return fmtMD(ev.date);
+}
+function eachDateRange(start, end, fn){
+  if(!start) return;
+  var last = (end && end >= start) ? end : start;
+  var d = parseD(start);
+  var e = parseD(last);
+  var guard = 0;
+  while(d <= e && guard < 3700){
+    fn(ymd(d));
+    d.setDate(d.getDate() + 1);
+    guard++;
+  }
+}
 function startOfWeek(s){ var d = parseD(s); var wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return ymd(d); }
 function fmtMD(s){ var d = parseD(s); return (d.getMonth() + 1) + '/' + d.getDate(); }
 function wdName(s){ return ['日','一','二','三','四','五','六'][parseD(s).getDay()]; }
@@ -87,6 +108,8 @@ function normalize(obj){
   o.events.forEach(function(ev){
     if(ev.title == null) ev.title = '';
     if(ev.date == null) ev.date = '';
+    if(ev.endDate == null) ev.endDate = '';
+    if(ev.endDate && ev.date && ev.endDate < ev.date) ev.endDate = '';
     if(ev.time == null) ev.time = '';
     if(ev.location == null) ev.location = '';
     if(ev.note == null) ev.note = '';
@@ -271,7 +294,7 @@ function renderOverview(){
     .sort(function(a, b){ return (a.due < b.due ? -1 : a.due > b.due ? 1 : PRI_RANK[a.priority] - PRI_RANK[b.priority]); })
     .slice(0, 6);
 
-  var upcoming = scheduleList().filter(function(it){ return it.date >= t; })
+  var upcoming = scheduleList().filter(function(it){ return (it.endDate || it.date) >= t; })
     .sort(scheduleSort)
     .slice(0, 3);
 
@@ -497,25 +520,41 @@ function scheduleList(){
     arr.push({ type:'meeting', id:m.id, date:m.date, time:m.time || '', data:m });
   });
   state.events.forEach(function(ev){
-    arr.push({ type:'event', id:ev.id, date:ev.date, time:ev.time || '', data:ev });
+    arr.push({ type:'event', id:ev.id, date:ev.date, endDate:eventEnd(ev), time:ev.time || '', data:ev });
   });
   return arr;
 }
 function scheduleSort(a, b){
-  return (a.date + 'T' + (a.time || '00:00')).localeCompare(b.date + 'T' + (b.time || '00:00'));
+  var at = a.dayTime !== undefined ? a.dayTime : (a.time || '');
+  var bt = b.dayTime !== undefined ? b.dayTime : (b.time || '');
+  return (a.date + 'T' + (at || '00:00')).localeCompare(b.date + 'T' + (bt || '00:00'));
 }
 function dayItems(date){
-  return scheduleList().filter(function(it){ return it.date === date; }).sort(scheduleSort);
+  return scheduleList().filter(function(it){
+    if(it.type === 'event') return it.date <= date && date <= (it.endDate || it.date);
+    return it.date === date;
+  }).map(function(it){
+    if(it.type !== 'event') return it;
+    var copy = {};
+    Object.keys(it).forEach(function(k){ copy[k] = it[k]; });
+    var days = Math.max(1, dayDiff(it.date, it.endDate || it.date) + 1);
+    var idx = Math.max(1, dayDiff(it.date, date) + 1);
+    copy.days = days;
+    copy.dayIndex = idx;
+    copy.dayTime = idx === 1 ? (it.time || '') : '';
+    return copy;
+  }).sort(scheduleSort);
 }
 function scheduleMeetHTML(it){
   var x = it.data;
   var isEv = it.type === 'event';
   var meta = isEv
-    ? [x.time || '全天', x.location]
+    ? [eventDays(x) > 1 ? eventRangeLabel(x) : (x.time || '全天'), x.location]
     : [x.time || '全天', x.attendees, x.location];
   var tags = '';
   if(isEv){
     tags = '<span class="pill p-ev">私人行程</span>';
+    if(eventDays(x) > 1 && x.date < today() && eventEnd(x) >= today()) tags += '<span class="pill p-info">進行中</span>';
   } else {
     var actions = x.actionItems || [];
     var undone = actions.filter(function(a){ return !a.done; }).length;
@@ -533,10 +572,10 @@ function dayRowHTML(it){
   var x = it.data;
   var isEv = it.type === 'event';
   var sub = isEv
-    ? ['私人行程', x.location]
+    ? ['私人行程', it.days > 1 ? '第 ' + it.dayIndex + '/' + it.days + ' 天' : '', x.location]
     : ['會議', x.location, ((x.actionItems || []).length ? '行動項 ' + (x.actionItems || []).length : '')];
   return '<div class="day-row" data-action="' + (isEv ? 'open-event' : 'open-meeting') + '" data-id="' + x.id + '">' +
-    '<span class="day-time">' + esc(x.time || '全天') + '</span>' +
+    '<span class="day-time">' + esc(isEv && it.dayTime !== undefined ? (it.dayTime || '全天') : (x.time || '全天')) + '</span>' +
     '<span class="day-main"><b>' + esc(x.title) + '</b><small>' + sub.filter(function(v){ return v; }).map(esc).join('・') + '</small></span>' +
     '<span class="pill ' + (isEv ? 'p-ev' : 'p-info') + '">' + (isEv ? '私人' : '會議') + '</span>' +
   '</div>';
@@ -570,7 +609,9 @@ function calHTML(){
   var prevDim = new Date(calY, calM, 0).getDate();
   var meetDates = {}, eventDates = {};
   state.meetings.forEach(function(m){ meetDates[m.date] = 1; });
-  state.events.forEach(function(ev){ eventDates[ev.date] = 1; });
+  state.events.forEach(function(ev){
+    eachDateRange(ev.date, eventEnd(ev), function(d){ eventDates[d] = 1; });
+  });
   var h = ['日','一','二','三','四','五','六'].map(function(w){ return '<div class="wd">' + w + '</div>'; }).join('');
   var i, ds;
   for(i = 0; i < first; i++) h += '<div class="day mut">' + (prevDim - first + 1 + i) + '</div>';
@@ -587,8 +628,8 @@ function calHTML(){
 function renderMeetings(){
   var t = today();
   var all = scheduleList();
-  var upcoming = all.filter(function(it){ return it.date >= t; }).sort(scheduleSort);
-  var past = all.filter(function(it){ return it.date < t; }).sort(function(a, b){ return scheduleSort(b, a); });
+  var upcoming = all.filter(function(it){ return (it.endDate || it.date) >= t; }).sort(scheduleSort);
+  var past = all.filter(function(it){ return (it.endDate || it.date) < t; }).sort(function(a, b){ return scheduleSort(b, a); });
 
   var h = '<div class="toolbar meet-toolbar">' +
     '<span class="kbd-note"><span class="legend-dot"></span>會議　<span class="legend-dot ev"></span>私人行程　點日期查看當天行程</span>' +
@@ -621,7 +662,7 @@ function renderMeetings(){
       var x = it.data;
       if(it.type === 'event'){
         h += '<div class="trow" data-action="open-event" data-id="' + x.id + '">' +
-          '<span class="t">' + esc(x.title) + '<small>' + fmtMD(x.date) + '・私人行程' + (x.location ? '・' + esc(x.location) : '') + '</small></span>' +
+          '<span class="t">' + esc(x.title) + '<small>' + eventRangeLabel(x) + '・私人行程' + (x.location ? '・' + esc(x.location) : '') + '</small></span>' +
           '<span class="pill p-ev">私人</span></div>';
       } else {
         h += '<div class="trow" data-action="open-meeting" data-id="' + x.id + '">' +
@@ -1268,12 +1309,12 @@ function renderSettings(){
   h += '</div></div>';
   h += '<div class="stack">';
   h += '<div class="card"><div class="card-h">整合（規劃中）</div>';
-  h += '<div class="prow">GitHub 專案 <span class="dim">顯示 issue、PR 狀態</span><span class="pill p-low push">v1.5</span></div>';
+  h += '<div class="prow">GitHub 專案 <span class="dim">顯示 issue、PR 狀態</span><span class="pill p-low push">v1.6</span></div>';
   h += '<div class="prow">Google Calendar <span class="dim">同步行程</span><span class="pill p-low push">v2</span></div>';
   h += '<div class="prow">Outlook / 信件 <span class="dim">摘要與待辦萃取</span><span class="pill p-low push">v2</span></div>';
   h += '</div>';
   h += '<div class="card"><div class="card-h">關於</div><div class="card-b">';
-  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.4・純前端、無依賴・支援 Supabase 雲端同步與 Telegram 按鈕收集</p>';
+  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.5・純前端、無依賴・支援多日私人行程、Supabase 雲端同步與 Telegram 按鈕收集</p>';
   h += '<p class="kbd-note" style="margin:0">部署：將此資料夾上傳到 GitHub repo，開啟 Pages（main / root）即可上線，詳見 README.md。</p>';
   h += '</div></div>';
   h += '</div></div>';
@@ -1515,19 +1556,22 @@ function openEventModal(id, presetDate){
   var ev = id ? findEvent(id) : null;
   if(id && !ev) return;
   var isEdit = !!ev;
-  ev = ev || { id:'', title:'', date: presetDate || today(), time:'', location:'', note:'' };
+  ev = ev || { id:'', title:'', date: presetDate || today(), endDate:'', time:'', location:'', note:'' };
   var h = '<form class="modal" data-form="event" data-id="' + ev.id + '">' +
     '<div class="modal-h">' + (isEdit ? '編輯私人行程' : '新增私人行程') +
       '<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
     '<div class="modal-b">' +
       '<div class="field"><label>標題</label><input name="title" data-autofocus value="' + esc(ev.title) + '" placeholder="例如：牙醫回診、接送小孩"></div>' +
       '<div class="row2">' +
-        '<div class="field"><label>日期</label><input type="date" name="date" value="' + (ev.date || '') + '"></div>' +
-        '<div class="field"><label>時間 <span class="cnt">（留空＝全天）</span></label><input type="time" name="time" value="' + (ev.time || '') + '"></div>' +
+        '<div class="field"><label>開始日期</label><input type="date" name="date" value="' + (ev.date || '') + '"></div>' +
+        '<div class="field"><label>結束日期 <span class="cnt">（選填）</span></label><input type="date" name="endDate" value="' + (ev.endDate || '') + '"></div>' +
       '</div>' +
-      '<div class="field"><label>地點（選填）</label><input name="location" value="' + esc(ev.location || '') + '" placeholder="診所、學校、餐廳…"></div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>時間 <span class="cnt">（留空＝全天）</span></label><input type="time" name="time" value="' + (ev.time || '') + '"></div>' +
+        '<div class="field"><label>地點（選填）</label><input name="location" value="' + esc(ev.location || '') + '" placeholder="診所、學校、餐廳…"></div>' +
+      '</div>' +
       '<div class="field"><label>備註（選填）</label><textarea name="note" rows="3" placeholder="要帶的東西、聯絡方式…">' + esc(ev.note || '') + '</textarea></div>' +
-      '<div class="kbd-note">私人行程只會出現在行事曆，不列入工作報表。</div>' +
+      '<div class="kbd-note">多日行程會在行事曆的每一天顯示綠點；私人行程不列入工作報表。</div>' +
     '</div>' +
     '<div class="modal-f">' +
       (isEdit ? '<button type="button" class="btn btn-danger" data-action="del-event" data-id="' + ev.id + '">刪除</button>' : '') +
@@ -1541,10 +1585,14 @@ function openEventModal(id, presetDate){
 function saveEventForm(f){
   var title = f.elements['title'].value.trim();
   if(!title){ toast('請輸入行程標題'); return; }
-  if(!f.elements['date'].value){ toast('請選擇日期'); return; }
+  var date = f.elements['date'].value;
+  var endDate = f.elements['endDate'].value;
+  if(!date){ toast('請選擇開始日期'); return; }
+  if(endDate && endDate < date){ toast('結束日期不能早於開始日期'); return; }
   var data = {
     title: title,
-    date: f.elements['date'].value,
+    date: date,
+    endDate: endDate && endDate > date ? endDate : '',
     time: f.elements['time'].value,
     location: f.elements['location'].value.trim(),
     note: f.elements['note'].value.trim()
@@ -1556,7 +1604,7 @@ function saveEventForm(f){
     Object.keys(data).forEach(function(k){ ev[k] = data[k]; });
   } else {
     state.events.push({
-      id: uid(), title: data.title, date: data.date, time: data.time,
+      id: uid(), title: data.title, date: data.date, endDate: data.endDate, time: data.time,
       location: data.location, note: data.note, createdAt: today()
     });
   }
@@ -2048,7 +2096,7 @@ function renderSearch(q){
     var hay = ev.title + ' ' + (ev.note || '') + ' ' + (ev.location || '');
     return hay.toLowerCase().indexOf(lq) >= 0;
   }).slice(0, 5).map(function(ev){
-    return '<div class="srow" data-action="open-event" data-id="' + ev.id + '"><span class="st">' + esc(ev.title) + '</span><span class="dim">' + fmtMD(ev.date) + '</span></div>';
+    return '<div class="srow" data-action="open-event" data-id="' + ev.id + '"><span class="st">' + esc(ev.title) + '</span><span class="dim">' + eventRangeLabel(ev) + '</span></div>';
   }));
   group('文件', state.docs.filter(function(d){
     return (d.title + ' ' + (d.note || '') + ' ' + (d.tags || []).join(' ')).toLowerCase().indexOf(lq) >= 0;

@@ -198,6 +198,7 @@ begin
       'id', gen_random_uuid()::text,
       'title', v_pending->>'title',
       'date', v_pending->>'date',
+      'endDate', coalesce(v_pending->>'endDate', ''),
       'time', coalesce(v_pending->>'time', ''),
       'location', '',
       'note', '來自 Telegram',

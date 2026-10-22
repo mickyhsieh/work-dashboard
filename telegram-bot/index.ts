@@ -71,6 +71,69 @@ function parseDateToken(raw) {
   if (m) return validYmd(now.getUTCFullYear(), +m[1], +m[2]);
   return null;
 }
+function parseRangeEnd(startRaw, endRaw) {
+  var start = parseDateToken(startRaw);
+  if (!start) return null;
+  var end = parseDateToken(endRaw);
+  if (end) return end;
+
+  // 10/25-27、10月25日-27日：只寫結束日，月份沿用開始日
+  var tail = String(endRaw || '').trim();
+  var dm = tail.match(/^(\d{1,2})[日號]?$/);
+  if (!dm) return null;
+  var day = +dm[1];
+  var year = +start.slice(0, 4);
+  var raw = String(startRaw || '').trim();
+  var sm = raw.match(/^(?:(\d{4})[-\/.])?(\d{1,2})[-\/.](\d{1,2})$/);
+  if (sm) return validYmd(sm[1] ? +sm[1] : year, +sm[2], day);
+  sm = raw.match(/^(\d{4})年(\d{1,2})月(\d{1,2})[日號]?$/);
+  if (sm) return validYmd(+sm[1], +sm[2], day);
+  sm = raw.match(/^(\d{1,2})月(\d{1,2})[日號]?$/);
+  if (sm) return validYmd(year, +sm[1], day);
+  return null;
+}
+function parseRangeToken(tok) {
+  var t = String(tok || '').trim();
+  if (!t) return null;
+
+  var m = t.match(/^(.+?)(?:~|～|–|—|到|至)(.+)$/);
+  if (m) {
+    var a = parseDateToken(m[1]);
+    var b = parseRangeEnd(m[1], m[2]);
+    if (a && b) return { start: a, end: b };
+  }
+
+  // 10/25-10/27、10/25-27、2026-10-25-2026-10-27
+  var cuts = [];
+  for (var i = 0; i < t.length; i++) {
+    if (t.charAt(i) === '-') cuts.push(i);
+  }
+  for (var j = cuts.length - 1; j >= 0; j--) {
+    var left = t.slice(0, cuts[j]);
+    var right = t.slice(cuts[j] + 1);
+    var s = parseDateToken(left);
+    if (!s) continue;
+    var e = parseRangeEnd(left, right);
+    if (e) return { start: s, end: e };
+  }
+  return null;
+}
+function extractDateRange(text) {
+  var m = String(text || '').match(/([^\s~～–—到至]+)\s*(?:~|～|–|—|到|至)\s*([^\s~～–—到至]+)/);
+  if (m) {
+    var a = parseDateToken(m[1]);
+    var b = parseRangeEnd(m[1], m[2]);
+    if (a && b) return { start: a, end: b, raw: m[0] };
+  }
+
+  var re = /\S+/g;
+  var tm;
+  while ((tm = re.exec(text))) {
+    var r = parseRangeToken(tm[0]);
+    if (r) return { start: r.start, end: r.end, raw: tm[0] };
+  }
+  return null;
+}
 function parseTimeToken(raw) {
   var t = String(raw || '').trim().toLowerCase().replace(/：/g, ':');
   if (!t) return '';
@@ -107,11 +170,20 @@ function parsePriority(tok) {
 function parseTaskInput(input) {
   var text = String(input || '').trim();
   text = text.replace(/^(\/add|\/task)(\s+|$)/i, '');
-  var toks = text.split(/\s+/).filter(function (x) { return !!x; });
   var due = '';
+  var endDate = '';
   var time = '';
   var priority = 'mid';
   var prioSet = false;
+
+  var range = extractDateRange(text);
+  if (range) {
+    due = range.start;
+    endDate = range.end;
+    text = text.replace(range.raw, ' ');
+  }
+
+  var toks = text.split(/\s+/).filter(function (x) { return !!x; });
   var titleParts = [];
 
   for (var i = 0; i < toks.length; i++) {
@@ -144,7 +216,7 @@ function parseTaskInput(input) {
     }
   }
 
-  return { title: titleParts.join(' ').trim(), due: due || todayTW(), time: time, priority: priority };
+  return { title: titleParts.join(' ').trim(), due: due || todayTW(), endDate: endDate, time: time, priority: priority };
 }
 // ===== PARSER END =====
 
@@ -166,8 +238,10 @@ var HELP_TEXT = [
   '・買牛奶 明天',
   '・牙醫回診 10/25 18:30',
   '・專案會議 週五 14:00',
+  '・出差 10/25-10/27',
   '',
   '日期：今天／明天／後天、週一～週日、10/25、10月25日',
+  '多日：10/25-10/27、10/25~10/27、10/25 到 10/27',
   '時間：18:30、下午3點、晚上8點半（行程／會議用）',
   '優先：加上 #高 #中 #低（任務用）',
   '',
@@ -273,10 +347,13 @@ function kindLabel(kind) {
   if (kind === 'meeting') return '會議';
   return '任務';
 }
+function fmtDateSpan(start, end) {
+  return (end && end !== start) ? fmtDate(start) + ' – ' + fmtDate(end) : fmtDate(start);
+}
 function buildAddedText(kind, item) {
   var date = kind === 'task' ? item.due : item.date;
   var lines = ['✅ 已新增' + kindLabel(kind), '', item.title];
-  var when = '📅 ' + fmtDate(date);
+  var when = '📅 ' + (kind === 'event' ? fmtDateSpan(item.date, item.endDate) : fmtDate(date));
   if (item.time) when += '・🕒 ' + item.time;
   lines.push(when);
   if (kind === 'task') lines.push('優先：' + (PRI_LABEL[item.priority] || '中'));
@@ -286,9 +363,10 @@ function buildAddedText(kind, item) {
   return lines.join('\n');
 }
 function pendingPrompt(p) {
-  var lines = ['要新增哪一種？', '', '📝 ' + p.title, '📅 ' + fmtDate(p.date)];
+  var lines = ['要新增哪一種？', '', '📝 ' + p.title, '📅 ' + fmtDateSpan(p.date, p.endDate)];
   if (p.time) lines[lines.length - 1] += '・🕒 ' + p.time;
   if (p.priority === 'high' || p.priority === 'low') lines.push('優先：' + PRI_LABEL[p.priority]);
+  if (p.endDate && p.endDate !== p.date) lines.push('', '多日區間請選「私人行程」；會議維持單日。');
   lines.push('', '按下按鈕後才會寫入儀錶板。');
   return lines.join('\n');
 }
@@ -391,7 +469,11 @@ async function handleMessage(msg) {
   var input = cmd ? parsed.rest : text;
   var t = parseTaskInput(input);
   if (!t.title) {
-    await tgSend(chatId, '請輸入內容，例如：\n買牛奶 明天\n牙醫回診 10/25 18:30');
+    await tgSend(chatId, '請輸入內容，例如：\n買牛奶 明天\n牙醫回診 10/25 18:30\n出差 10/25-10/27');
+    return;
+  }
+  if (t.endDate && t.endDate < t.due) {
+    await tgSend(chatId, '結束日期不能早於開始日期，請重新輸入。');
     return;
   }
 
@@ -399,6 +481,7 @@ async function handleMessage(msg) {
   var pending = {
     title: t.title,
     date: t.due,
+    endDate: t.endDate && t.endDate > t.due ? t.endDate : '',
     time: t.time || '',
     priority: t.priority,
     tgMsgId: chatKey + ':' + msg.message_id,
