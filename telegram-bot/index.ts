@@ -35,6 +35,12 @@ function validYmd(y, m, d) {
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
   return ymd(dt);
 }
+function addDaysYmd(date, n) {
+  var p = String(date).split('-').map(Number);
+  var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  d.setUTCDate(d.getUTCDate() + n);
+  return ymd(d);
+}
 function parseDateToken(raw) {
   var t = String(raw || '').trim();
   if (!t) return null;
@@ -134,6 +140,14 @@ function extractDateRange(text) {
   }
   return null;
 }
+function parseDurationToken(raw) {
+  var t = String(raw || '').trim();
+  var m = t.match(/^(\d{1,2}|[一二兩两三四五六七八九十])[天日](?:(?:\d{1,2}|[一二兩两三四五六七八九十])夜)?$/);
+  if (!m) return 0;
+  var map = { '一': 1, '二': 2, '兩': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+  var n = /^\d+$/.test(m[1]) ? +m[1] : map[m[1]];
+  return (n >= 1 && n <= 60) ? n : 0;
+}
 function parseTimeToken(raw) {
   var t = String(raw || '').trim().toLowerCase().replace(/：/g, ':');
   if (!t) return '';
@@ -172,6 +186,7 @@ function parseTaskInput(input) {
   text = text.replace(/^(\/add|\/task)(\s+|$)/i, '');
   var due = '';
   var endDate = '';
+  var durationDays = 0;
   var time = '';
   var priority = 'mid';
   var prioSet = false;
@@ -196,6 +211,8 @@ function parseTaskInput(input) {
       var tm = parseTimeToken(tok);
       if (tm) { time = tm; continue; }
     }
+    var dur = parseDurationToken(tok);
+    if (dur) { durationDays = dur; continue; }
     var p = parsePriority(tok);
     var explicit = /^[#!]/.test(tok);
     // 沒有 # 的「高/低/中」只有在任務名稱後面才視為優先級，避免吃掉標題
@@ -216,7 +233,9 @@ function parseTaskInput(input) {
     }
   }
 
-  return { title: titleParts.join(' ').trim(), due: due || todayTW(), endDate: endDate, time: time, priority: priority };
+  var finalDue = due || todayTW();
+  if (!endDate && durationDays > 1) endDate = addDaysYmd(finalDue, durationDays - 1);
+  return { title: titleParts.join(' ').trim(), due: finalDue, endDate: endDate, time: time, priority: priority };
 }
 // ===== PARSER END =====
 
@@ -242,6 +261,7 @@ var HELP_TEXT = [
   '',
   '日期：今天／明天／後天、週一～週日、10/25、10月25日',
   '多日：10/25-10/27、10/25~10/27、10/25 到 10/27',
+  '天數：10/25 三天、明天 兩天、三天兩夜',
   '時間：18:30、下午3點、晚上8點半（行程／會議用）',
   '優先：加上 #高 #中 #低（任務用）',
   '',
