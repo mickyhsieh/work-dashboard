@@ -268,6 +268,8 @@ var HELP_TEXT = [
   '指令：',
   '/add 新增任務／私人行程／會議',
   '/today 今天待辦',
+  '/test 測試按鈕是否正常',
+  '/diag 檢查 Bot 設定與按鈕資料庫',
   '/id 取得你的 chat id',
   '/help 說明'
 ].join('\n');
@@ -351,6 +353,7 @@ function savePending(token, chatId, messageId, payload) {
 }
 function commitPending(token, chatId, kind) {
   return rpc('commit_telegram_pending', {
+    p_id: DASH_ID,
     p_token: token,
     p_chat_id: chatId,
     p_kind: kind
@@ -472,6 +475,58 @@ async function handleMessage(msg) {
     return;
   }
 
+  if (cmd === 'test') {
+    await tgSend(chatId, '🔘 按鈕測試：看到下方按鈕代表這個聊天室可以顯示 inline keyboard。', {
+      reply_markup: {
+        inline_keyboard: [[{ text: '✅ 測試按鈕', callback_data: 'q:test' }]]
+      }
+    });
+    return;
+  }
+
+  if (cmd === 'diag') {
+    var diag = [
+      '🔧 Telegram Bot 診斷',
+      'BOT_TOKEN：' + (BOT_TOKEN ? '已設定' : '缺少'),
+      'WEBHOOK_SECRET：' + (WEBHOOK_SECRET ? '已設定' : '缺少'),
+      'DASH_URL：' + (DASH_URL ? '已設定' : '缺少'),
+      'DASH_KEY：' + (DASH_KEY ? '已設定' : '缺少'),
+      'DASH_ID：' + (DASH_ID ? '已設定' : '缺少'),
+      'ALLOWED_CHAT_ID：' + (ALLOWED ? '已設定' : '缺少')
+    ];
+    var probeToken = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    try {
+      var probe = await savePending(probeToken, chatKey, msg.message_id, {
+        title: '診斷',
+        date: todayTW(),
+        tgMsgId: chatKey + ':' + msg.message_id
+      });
+      if (probe && probe.ok === true) {
+        diag.push('按鈕暫存 RPC：正常');
+        try { await discardPending(probeToken, chatKey); } catch (e2) {}
+      } else {
+        diag.push('按鈕暫存 RPC：回傳異常');
+      }
+    } catch (e) {
+      diag.push('按鈕暫存 RPC：失敗（' + errText(e) + '）');
+    }
+    try {
+      var info = await tgApi('getWebhookInfo', {});
+      if (info && info.ok && info.result) {
+        diag.push('Webhook：' + (info.result.url ? '已設定' : '未設定'));
+        diag.push('待處理更新：' + (info.result.pending_update_count || 0));
+        if (info.result.last_error_message) diag.push('最近錯誤：' + String(info.result.last_error_message).slice(0, 160));
+      } else {
+        diag.push('Webhook：查詢失敗');
+      }
+    } catch (e3) {
+      diag.push('Webhook：查詢失敗');
+    }
+    diag.push('', '若按鈕暫存失敗，請在 Supabase SQL Editor 重新執行 setup.sql。');
+    await tgSend(chatId, diag.join('\n'));
+    return;
+  }
+
   if (cmd === 'today') {
     try {
       await tgSend(chatId, await buildTodayText());
@@ -517,7 +572,7 @@ async function handleMessage(msg) {
     });
   } catch (e) {
     console.error('telegram-task save pending error', e);
-    await tgSend(chatId, '⚠️ 無法建立按鈕。請確認 setup.sql 已更新並重新執行。\n' + errText(e));
+    await tgSend(chatId, '⚠️ 無法建立按鈕。請在 Supabase SQL Editor 重新執行 setup.sql，並重新 Deploy telegram-task；完成後傳 /diag 檢查。\n' + errText(e));
   }
 }
 
@@ -530,6 +585,12 @@ async function handleCallback(cb) {
 
   if (!ALLOWED || ALLOWED !== chatKey) {
     await tgAnswer(cb.id, '未授權');
+    return;
+  }
+
+  if (cb.data === 'q:test') {
+    await tgAnswer(cb.id, '按鈕正常');
+    if (msg) await tgEdit(chatId, messageId, '✅ 按鈕正常，Edge Function 有收到點擊。');
     return;
   }
 

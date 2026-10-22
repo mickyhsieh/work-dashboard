@@ -27,8 +27,12 @@ Telegram → Bot → Supabase Edge Function（telegram-task）
 | `旅遊 明天 兩天一夜` | 按「私人行程」後新增 2 天行程 |
 | `專案會議 週五 14:00` | 按「會議」後新增 |
 | `/today` | 回覆今天的待辦與逾期任務 |
+| `/test` | 送出一顆測試按鈕，確認聊天室能顯示 inline keyboard |
+| `/diag` | 檢查 Secrets、Webhook、按鈕暫存 RPC 是否正常 |
 | `/id` | 顯示你的 Telegram chat id（設定授權用） |
 | `/help` | 指令說明 |
+
+> 看不到按鈕時，先傳 `/test`。如果 `/test` 也沒有按鈕，通常是 `telegram-task` 還是舊版，請重新 Deploy `index.ts`。如果 `/test` 有按鈕、但一般訊息沒有，通常是 `setup.sql` 的按鈕暫存函式尚未建立或未更新。
 
 - 日期：`今天`、`明天`、`後天`、`大後天`、`週一`～`週日`、`下週一`～`下週日`、`10/25`、`10-25`、`10月25日`、`2026-10-25`。
 - 多日區間：`10/25-10/27`、`10/25~10/27`、`10/25 到 10/27`、`明天到後天`；按「私人行程」才會使用結束日期。
@@ -170,7 +174,10 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 | `401 Unauthorized` | `secret_token` 與 `WEBHOOK_SECRET` 不一致 |
 | Bot 回「尚未設定授權」 | `ALLOWED_CHAT_ID` 尚未填或填錯 |
 | Bot 回「無法建立按鈕」 | `setup.sql` 還沒更新／重跑，或 Edge Function 還沒重新 Deploy |
+| 完全看不到按鈕 | 先傳 `/test`。沒有測試按鈕＝`telegram-task` 還是舊版，重新貼上最新 `index.ts` 並 Deploy |
+| `/test` 有按鈕，但一般訊息沒有 | 按鈕暫存失敗；到 Supabase SQL Editor 重跑 `setup.sql`，再傳 `/diag` 確認 |
 | 有按鈕但按了沒反應 | Edge Function 是否已重新 Deploy；到 Logs 看 `callback_query` 是否進來 |
+| 按鈕有反應但寫入失敗 | 重新 Deploy 最新 `index.ts`（舊版少了 `p_id`，`commit_telegram_pending` 會失敗） |
 | Bot 回「這個選項已失效或已處理過」 | 待確認超過 2 天，或這個按鈕已經按過；重新傳訊息即可 |
 | Bot 回「結束日期不能早於開始日期」 | 多日區間順序寫反了；改成 `10/25-10/27` 這種由早到晚的格式 |
 | Bot 回「找不到雲端資料列」 | `DASH_ID` 打錯（要與儀錶板的文件金鑰相同） |
@@ -192,4 +199,5 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 1. SQL Editor 重新執行整份 [`setup.sql`](./setup.sql)。
 2. Edge Functions → `telegram-task` → 貼上新版 [`index.ts`](./index.ts) → Deploy。
 3. Secrets、Webhook 不用改。
-4. 對 Bot 傳 `買牛奶 明天`，確認出現四個按鈕。
+4. 對 Bot 傳 `/test`，確認出現測試按鈕；再傳 `/diag`，確認「按鈕暫存 RPC：正常」。
+5. 傳 `買牛奶 明天`，確認出現四個按鈕；按「任務」後確認寫入成功。
