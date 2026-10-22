@@ -1,5 +1,5 @@
 /* ============================================================
-   工作儀錶板 v1 — 核心邏輯
+   工作儀錶板 v1.6 — 核心邏輯
    純前端、無依賴；資料存於 localStorage
    ============================================================ */
 (function(){
@@ -688,7 +688,7 @@ function renderAIWorkspace(){
   return h;
 }
 function aiAgentPanelHTML(){
-  var h = '<div class="card ai-agent"><div class="card-h">AI Agent 介面 <span class="cnt">資料會同步到雲端 payload.aiTasks</span></div><div class="card-b">';
+  var h = '<div class="card ai-agent"><div class="card-h">AI Agent 介面 <span class="cnt">雲端同步時位於 payload.aiTasks</span></div><div class="card-b">';
   h += '<div class="ai-agent-grid">' +
     '<div><p class="kbd-note" style="margin-top:0">瀏覽器自動化可直接呼叫：</p>' +
       '<div class="ai-code">wdAI.list()<br>wdAI.update(id, { status: "doing", progress: 50 })<br>wdAI.complete(id, "完成結果")</div></div>' +
