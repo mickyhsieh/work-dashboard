@@ -1,6 +1,6 @@
 # 工作儀錶板（Work Dashboard）
 
-個人工作儀錶板：任務、專案、會議與私人行程、文件、工時統計與工作報表，外加一個收納常用網站的摸魚區；單一頁面、純前端、無依賴。
+個人工作儀錶板：任務、專案、會議與私人行程、文件、工時統計與工作報表，外加 AI 工作區與收納常用網站的摸魚區；單一頁面、純前端、無依賴。
 
 ## 功能
 
@@ -8,6 +8,7 @@
 |---|---|
 | 總覽 | KPI（本週到期／進行中／逾期／完成率）、今日焦點、近期行程（會議＋私人行程）、專案進度 |
 | 任務 | 看板（可拖放換狀態）⇄ 清單、篩選（高優先／本週／逾期）、新增/編輯/刪除 |
+| AI 工作區 | 位於任務頁子頁：AI 待辦、處理進度、等待確認、完成四區；任務指示、進度、結果、更新紀錄；複製 JSON／Agent 指令、套用 Agent 更新 |
 | 專案 | 進度自動計算、里程碑點擊切換、未完成任務數 |
 | 會議 | 月曆（翻頁，會議／私人行程雙色圓點）、點日期查看當天行程、新增私人行程（支援多日行程）、即將到來與歷史紀錄、行動項追蹤、**一鍵轉任務** |
 | 文件 | 知識庫卡片、搜尋、標籤篩選、外部連結 |
@@ -15,7 +16,7 @@
 | 摸魚區 | 常用網站收藏：卡片式、favicon、點擊開新分頁、新增/編輯/刪除 |
 | 設定 | JSON 匯出／匯入（也可直接把 .json 拖進頁面）、**Supabase 雲端同步**、示範資料、清除資料 |
 
-其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議，支援多日行程，見 `telegram-bot/README.md`）。
+其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議，支援多日行程，見 `telegram-bot/README.md`）。AI 工作區另提供 `window.wdAI` 瀏覽器 API，方便未來的 AI Agent 讀取與更新。
 
 > 工作報表口徑：完成數依「完成日」，未完成依「到期日」；兩者分開呈現。行動項與里程碑自 v1.2 起記錄完成日（`doneAt`），較早完成的舊資料不會列入期間統計。私人行程只顯示於行事曆，不列入工作報表與工時統計。
 
@@ -82,6 +83,43 @@ create policy "anon all" on dashboards
 
 設定一支 Telegram Bot，就能直接傳「買牛奶 明天」把任務寫進雲端，詳見 [`telegram-bot/README.md`](telegram-bot/README.md)。
 
+### AI 工作區與 Agent
+
+AI 工作區在「任務」頁的子頁，資料存在 `state.aiTasks`，雲端同步時位於 `dashboards.payload.aiTasks`。每筆任務包含：
+
+```json
+{
+  "id": "任務 id",
+  "title": "整理會議逐字稿",
+  "instruction": "給 AI 的背景與指示",
+  "status": "todo | doing | waiting | done",
+  "progress": 0,
+  "priority": "high | mid | low",
+  "owner": "AI Agent",
+  "due": "2026-10-25",
+  "waitingFor": "等待人工確認的原因",
+  "result": "完成結果",
+  "createdAt": "2026-10-22",
+  "updatedAt": "2026-10-22T08:00:00.000Z",
+  "completedAt": null,
+  "history": []
+}
+```
+
+未來的 AI Agent 若透過瀏覽器自動化操作，可在 Console 直接呼叫：
+
+```js
+wdAI.list()                                  // 讀取全部任務
+wdAI.list('todo')                            // 只讀待辦
+wdAI.add({ title: '新任務', instruction: '…' })
+wdAI.update(id, { status: 'doing', progress: 40, note: '開始處理' })
+wdAI.update(id, { status: 'waiting', waitingFor: '請確認名單' })
+wdAI.complete(id, '已完成並輸出摘要')          // 自動設為 done / 100%
+wdAI.apply([{ id, status: 'doing', progress: 60 }])
+```
+
+AI 工作區下方也提供「複製 AI 待辦 JSON」、「複製 Agent 指令」、「套用 Agent 更新」，可把任務資料交給雲端 Agent，再把回傳的 JSON 貼回來。Agent 直接寫 Supabase 時，請先取得最新 payload，以 `id` 更新 `payload.aiTasks`，保留其他任務與 dashboard 欄位，並更新 `updated_at`，避免覆蓋其他裝置的變更。
+
 ### 注意
 
 - 「文件金鑰」等於這份資料的密碼，請勿外流
@@ -125,7 +163,8 @@ https://<你的帳號>.github.io/work-dashboard/
 
 ## 路線圖
 
-- **v1.6**：GitHub 專案面板（顯示 issue、PR 狀態）
+- **v1.6**：AI 工作區（AI 待辦、進度、等待確認、完成、Agent API）✅
+- **v1.7**：GitHub 專案面板（顯示 issue、PR 狀態）
 - **v2**：Google Calendar／Outlook 日曆整合（OAuth）、信件待辦萃取
 - 雲端同步：✅ 已完成（Supabase；可自訂 API 替換）
 - Telegram 收集：✅ 任務／私人行程／會議（按鈕確認；Edge Function）

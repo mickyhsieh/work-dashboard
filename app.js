@@ -55,6 +55,8 @@ function isOverdue(t){ return t.due && t.status !== 'done' && t.due < today(); }
 
 /* ================= 常數 ================= */
 var ST = { todo:'待辦', doing:'進行中', done:'完成' };
+var AI_ST = { todo:'AI 待辦', doing:'處理中', waiting:'等待確認', done:'完成' };
+var AI_STATUSES = ['todo','doing','waiting','done'];
 var PRI = { high:'高', mid:'中', low:'低' };
 var PRI_RANK = { high:0, mid:1, low:2 };
 var TITLES = { overview:'總覽', tasks:'任務', projects:'專案', meetings:'日曆', docs:'文件', stats:'統計', fun:'摸魚區', settings:'設定' };
@@ -85,7 +87,8 @@ function normalize(obj){
     events: obj.events || [],
     docs: obj.docs || [],
     hours: obj.hours || [],
-    links: obj.links || []
+    links: obj.links || [],
+    aiTasks: Array.isArray(obj.aiTasks) ? obj.aiTasks : []
   };
   o.tasks.forEach(function(t){
     if(!t.status) t.status = 'todo';
@@ -120,6 +123,7 @@ function normalize(obj){
     if(l.url == null) l.url = '';
     if(l.note == null) l.note = '';
   });
+  o.aiTasks = o.aiTasks.map(normalizeAITask);
   return o;
 }
 function saveState(){
@@ -133,6 +137,7 @@ function commit(){ saveState(); render(); }
 function seed(){
   var t = today();
   var p1 = uid(), p2 = uid();
+  var aiStamp = new Date().toISOString();
   return {
     version: 1,
     modifiedAt: Date.now(),
@@ -194,6 +199,23 @@ function seed(){
       { id: uid(), title:'YouTube', url:'https://www.youtube.com', note:'休息一下', createdAt:t },
       { id: uid(), title:'GitHub', url:'https://github.com', note:'逛逛有趣的專案', createdAt:t },
       { id: uid(), title:'巴哈姆特', url:'https://www.gamer.com.tw', note:'', createdAt:t }
+    ],
+    aiTasks: [
+      { id: uid(), title:'整理本週會議逐字稿', instruction:'從逐字稿萃取決議與行動項，整理成可直接轉任務的清單。',
+        status:'todo', progress:0, priority:'high', owner:'AI Agent', due:t, waitingFor:'', result:'',
+        createdAt:t, updatedAt:aiStamp, startedAt:null, completedAt:null, history:[] },
+      { id: uid(), title:'官網改版競品資料蒐集', instruction:'整理 3 個競品首頁的版型、導覽與 CTA，輸出比較表。',
+        status:'doing', progress:45, priority:'mid', owner:'AI Agent', due:addDays(t, 2), waitingFor:'', result:'',
+        createdAt:t, updatedAt:aiStamp, startedAt:aiStamp, completedAt:null,
+        history:[{ at:aiStamp, status:'doing', progress:45, note:'已完成兩個競品，正在整理第三個' }] },
+      { id: uid(), title:'招生表單回覆信草稿', instruction:'依招生簡章產生家長回覆信，語氣親切、300 字內。',
+        status:'waiting', progress:80, priority:'mid', owner:'AI Agent', due:t, waitingFor:'請確認是否提到早鳥優惠與退款規則。', result:'',
+        createdAt:t, updatedAt:aiStamp, startedAt:aiStamp, completedAt:null,
+        history:[{ at:aiStamp, status:'waiting', progress:80, note:'草稿完成，等待人工確認' }] },
+      { id: uid(), title:'會議紀錄歸檔摘要', instruction:'把上週會議紀錄濃縮成 5 點摘要，標記負責人與期限。',
+        status:'done', progress:100, priority:'low', owner:'AI Agent', due:addDays(t, -2), waitingFor:'', result:'已產出 5 點摘要，並標記 3 位負責人。',
+        createdAt:t, updatedAt:aiStamp, startedAt:aiStamp, completedAt:addDays(t, -1),
+        history:[{ at:aiStamp, status:'done', progress:100, note:'已交付摘要' }] }
     ]
   };
 }
@@ -203,6 +225,7 @@ function findTask(id){ for(var i=0;i<state.tasks.length;i++) if(state.tasks[i].i
 function findProject(id){ for(var i=0;i<state.projects.length;i++) if(state.projects[i].id===id) return state.projects[i]; return null; }
 function findMeeting(id){ for(var i=0;i<state.meetings.length;i++) if(state.meetings[i].id===id) return state.meetings[i]; return null; }
 function findEvent(id){ for(var i=0;i<state.events.length;i++) if(state.events[i].id===id) return state.events[i]; return null; }
+function findAITask(id){ for(var i=0;i<state.aiTasks.length;i++) if(state.aiTasks[i].id===id) return state.aiTasks[i]; return null; }
 function findDoc(id){ for(var i=0;i<state.docs.length;i++) if(state.docs[i].id===id) return state.docs[i]; return null; }
 function findLink(id){ for(var i=0;i<state.links.length;i++) if(state.links[i].id===id) return state.links[i]; return null; }
 function projName(id){ var p = id ? findProject(id) : null; return p ? p.name : ''; }
@@ -270,11 +293,19 @@ function pillST(s){
 var currentView = 'overview';
 function go(view){
   currentView = view;
-  $('#page-title').textContent = TITLES[view] || '總覽';
+  $('#page-title').textContent = (view === 'tasks' && taskArea === 'ai') ? 'AI 工作區' : (TITLES[view] || '總覽');
   $$('.view').forEach(function(v){ v.classList.toggle('on', v.id === 'view-' + view); });
   $$('.nav a').forEach(function(a){ a.classList.toggle('active', a.dataset.view === view); });
+  updateTopbarAdd();
   window.scrollTo(0, 0);
   if(view === 'settings') refreshCloudTime();
+}
+function updateTopbarAdd(){
+  var btn = $('.topbar .btn-primary');
+  if(!btn) return;
+  var ai = currentView === 'tasks' && taskArea === 'ai';
+  btn.dataset.action = ai ? 'open-ai-task' : 'open-task';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' + (ai ? '新增 AI 任務' : '新增任務');
 }
 
 /* ================= 渲染：總覽 ================= */
@@ -335,6 +366,8 @@ function renderOverview(){
     h += '<div class="empty">沒有即將到來的會議或行程</div>';
   }
   h += '</div>';
+
+  h += aiOverviewHTML();
 
   h += '<div class="card"><div class="card-h">專案進度</div><div class="card-b">';
   var ps = state.projects.slice(0, 3);
@@ -405,8 +438,16 @@ function taskCard(x){
 }
 function renderTasks(){
   var el = $('#view-tasks');
+  var h = '<div class="task-area-switch">' +
+    segHTML('taskarea', taskArea, [['tasks','我的任務'],['ai','AI 工作區']], 220) +
+  '</div>';
+  if(taskArea === 'ai'){
+    h += renderAIWorkspace();
+    el.innerHTML = h;
+    return;
+  }
   var chips = [['all','全部'],['high','高優先'],['week','本週到期'],['overdue','逾期']];
-  var h = '<div class="toolbar">' +
+  h += '<div class="toolbar">' +
     segHTML('tasksview', taskViewMode, [['board','看板'],['list','清單']], 150) +
     chips.map(function(c){
       return '<button class="chip' + (taskFilter === c[0] ? ' on' : '') + '" data-action="set-taskfilter" data-val="' + c[0] + '">' + c[1] + '</button>';
@@ -466,6 +507,222 @@ function setTaskStatus(id, status){
   x.completedAt = (status === 'done') ? today() : null;
   commit();
   toast('已移至「' + ST[status] + '」');
+}
+
+/* ================= AI 工作區 ================= */
+var TASK_AREA_KEY = 'wd-task-area';
+var taskArea = 'tasks';
+try{ taskArea = localStorage.getItem(TASK_AREA_KEY) === 'ai' ? 'ai' : 'tasks'; }catch(e){}
+
+function aiNow(){ return new Date().toISOString(); }
+function aiClamp(n){ n = Math.round(+n || 0); return Math.max(0, Math.min(100, n)); }
+function normalizeAITask(t){
+  t = t || {};
+  if(!t.id) t.id = uid();
+  if(t.title == null) t.title = '';
+  if(t.instruction == null) t.instruction = '';
+  if(t.owner == null) t.owner = 'AI Agent';
+  if(AI_STATUSES.indexOf(t.status) < 0) t.status = 'todo';
+  if(!PRI[t.priority]) t.priority = 'mid';
+  t.progress = aiClamp(t.progress);
+  if(t.status === 'done') t.progress = 100;
+  if(t.status === 'todo') t.progress = 0;
+  if(t.due === undefined) t.due = null;
+  if(t.waitingFor == null) t.waitingFor = '';
+  if(t.result == null) t.result = '';
+  if(t.createdAt == null) t.createdAt = today();
+  if(t.updatedAt == null) t.updatedAt = '';
+  if(t.startedAt === undefined) t.startedAt = null;
+  if(t.completedAt === undefined) t.completedAt = null;
+  if(t.status === 'done' && !t.completedAt) t.completedAt = today();
+  if(t.status !== 'done') t.completedAt = null;
+  if(!Array.isArray(t.history)) t.history = [];
+  t.history = t.history.filter(function(x){ return x && typeof x === 'object'; }).map(function(x){
+    return {
+      at: x.at || '',
+      status: AI_ST[x.status] ? x.status : t.status,
+      progress: aiClamp(x.progress),
+      note: x.note == null ? '' : String(x.note)
+    };
+  }).slice(-40);
+  return t;
+}
+function aiLog(t, note){
+  if(!Array.isArray(t.history)) t.history = [];
+  t.history.push({ at: aiNow(), status: t.status, progress: t.progress, note: note || '' });
+  if(t.history.length > 40) t.history = t.history.slice(-40);
+}
+function aiCounts(){
+  var c = { todo:0, doing:0, waiting:0, done:0, total: state.aiTasks.length };
+  state.aiTasks.forEach(function(t){ if(c[t.status] != null) c[t.status]++; });
+  return c;
+}
+function aiSortFor(status){
+  return function(a, b){
+    if(status === 'done') return String(b.completedAt || '').localeCompare(String(a.completedAt || ''));
+    var ad = a.due || '9999-12-31', bd = b.due || '9999-12-31';
+    if(ad !== bd) return ad < bd ? -1 : 1;
+    var pr = PRI_RANK[a.priority] - PRI_RANK[b.priority];
+    if(pr) return pr;
+    return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+  };
+}
+function aiPatch(t, patch, logNote){
+  patch = patch || {};
+  ['title','instruction','owner','waitingFor','result'].forEach(function(k){
+    if(patch[k] !== undefined) t[k] = String(patch[k] == null ? '' : patch[k]);
+  });
+  if(patch.due !== undefined) t.due = patch.due || null;
+  if(patch.priority && PRI[patch.priority]) t.priority = patch.priority;
+  if(patch.status && AI_ST[patch.status]) t.status = patch.status;
+  if(patch.progress !== undefined) t.progress = aiClamp(patch.progress);
+  if(t.status === 'done'){
+    t.progress = 100;
+    if(!t.completedAt) t.completedAt = today();
+  } else {
+    t.completedAt = null;
+    if(t.status === 'todo') t.progress = 0;
+  }
+  if(t.status === 'doing' && !t.startedAt) t.startedAt = aiNow();
+  t.updatedAt = aiNow();
+  aiLog(t, logNote !== undefined ? logNote : (patch.note || ''));
+  return t;
+}
+function aiCreate(data){
+  data = data || {};
+  var newId = data.id || uid();
+  if(findAITask(newId)) newId = uid();
+  var t = normalizeAITask({
+    id: newId,
+    title: data.title,
+    instruction: data.instruction,
+    status: data.status || 'todo',
+    progress: data.progress || 0,
+    priority: data.priority || 'mid',
+    owner: data.owner || 'AI Agent',
+    due: data.due,
+    waitingFor: data.waitingFor,
+    result: data.result,
+    createdAt: data.createdAt || today(),
+    updatedAt: aiNow(),
+    startedAt: data.startedAt || null,
+    completedAt: data.completedAt || null,
+    history: data.history || []
+  });
+  aiLog(t, data.logNote || data.note || '建立 AI 任務');
+  return t;
+}
+function aiCopy(t){ return JSON.parse(JSON.stringify(t)); }
+function aiJSON(){ return JSON.stringify(state.aiTasks.map(aiCopy), null, 2); }
+function aiPromptText(){
+  var payload = { schemaVersion: 1, generatedAt: aiNow(), tasks: state.aiTasks.map(aiCopy) };
+  return [
+    '你是工作儀錶板的 AI Agent。以下是 AI 工作區目前資料：',
+    JSON.stringify(payload, null, 2),
+    '',
+    '請只回傳 JSON 陣列，每筆更新格式：',
+    '{"id":"任務 id","status":"todo|doing|waiting|done","progress":0-100,"waitingFor":"等待確認原因","result":"完成結果","note":"本次更新說明"}',
+    '規則：status=done 時 progress 必須是 100；不確定的欄位可省略；不要改 id。'
+  ].join('\n');
+}
+function setTaskArea(val){
+  taskArea = val === 'ai' ? 'ai' : 'tasks';
+  try{ localStorage.setItem(TASK_AREA_KEY, taskArea); }catch(e){}
+  if(currentView === 'tasks'){
+    $('#page-title').textContent = taskArea === 'ai' ? 'AI 工作區' : '任務';
+    updateTopbarAdd();
+    renderTasks();
+  }
+}
+function openAIWorkspace(){
+  taskArea = 'ai';
+  try{ localStorage.setItem(TASK_AREA_KEY, taskArea); }catch(e){}
+  go('tasks');
+  renderTasks();
+}
+function aiQuickActions(t){
+  function b(status, label, primary){
+    return '<button type="button" class="ai-act' + (primary ? ' primary' : '') + '" data-action="aiws-status" data-id="' + t.id + '" data-status="' + status + '">' + label + '</button>';
+  }
+  if(t.status === 'todo') return b('doing', '開始處理', true);
+  if(t.status === 'doing') return b('waiting', '等待確認') + b('done', '完成', true);
+  if(t.status === 'waiting') return b('doing', '退回處理') + b('done', '確認完成', true);
+  return b('todo', '重新開啟');
+}
+function aiCardHTML(t){
+  var meta = [];
+  if(t.owner) meta.push(esc(t.owner));
+  if(t.due) meta.push('到期 ' + dueLabel(t.due));
+  if(t.updatedAt) meta.push(relTime(t.updatedAt) + '更新');
+  var body = '';
+  if(t.status === 'waiting'){
+    body = '<div class="ai-callout wait"><b>等待確認</b><span>' + esc(t.waitingFor || '等待人工確認') + '</span></div>';
+  } else if(t.status === 'done'){
+    body = '<div class="ai-callout done"><b>完成結果</b><span>' + esc(t.result || '已完成') + '</span></div>';
+  } else if(t.instruction){
+    body = '<div class="ai-desc">' + esc(t.instruction) + '</div>';
+  }
+  return '<div class="ai-card ' + t.status + '" data-action="open-ai-task" data-id="' + t.id + '">' +
+    '<div class="ai-card-top"><span class="ai-col-dot ' + t.status + '"></span>' + pillPRI(t.priority) + '</div>' +
+    '<div class="ai-title">' + esc(t.title) + '</div>' +
+    body +
+    '<div class="ai-progress"><div class="ai-bar"><i style="width:' + t.progress + '%"></i></div><span>' + t.progress + '%</span></div>' +
+    '<div class="ai-meta">' + meta.join('・') + '</div>' +
+    '<div class="ai-actions">' + aiQuickActions(t) + '</div>' +
+  '</div>';
+}
+function renderAIWorkspace(){
+  var h = '<div class="ai-intro kbd-note">AI Agent 可讀取與更新此區；等待確認的項目需要你回覆。</div>';
+  h += '<div class="board ai-board">';
+  AI_STATUSES.forEach(function(st){
+    var arr = state.aiTasks.filter(function(t){ return t.status === st; }).sort(aiSortFor(st));
+    var empty = st === 'todo' ? '尚無 AI 待辦' : st === 'doing' ? 'Agent 開始處理後會移到這' : st === 'waiting' ? '需要你確認時會移到這' : '完成的項目會留在這';
+    h += '<div class="col ai-col-' + st + '"><div class="card"><div class="card-h">' +
+      '<span class="ai-col-title"><span class="ai-col-dot ' + st + '"></span>' + AI_ST[st] + '</span>' +
+      ' <span class="cnt">' + arr.length + '</span></div>' +
+      '<div class="card-b">' + (arr.length ? arr.map(aiCardHTML).join('') : '<div class="empty">' + empty + '</div>') + '</div>' +
+    '</div></div>';
+  });
+  h += '</div>';
+  h += aiAgentPanelHTML();
+  return h;
+}
+function aiAgentPanelHTML(){
+  var h = '<div class="card ai-agent"><div class="card-h">AI Agent 介面 <span class="cnt">資料會同步到雲端 payload.aiTasks</span></div><div class="card-b">';
+  h += '<div class="ai-agent-grid">' +
+    '<div><p class="kbd-note" style="margin-top:0">瀏覽器自動化可直接呼叫：</p>' +
+      '<div class="ai-code">wdAI.list()<br>wdAI.update(id, { status: "doing", progress: 50 })<br>wdAI.complete(id, "完成結果")</div></div>' +
+    '<div><p class="kbd-note" style="margin-top:0">雲端 Agent 可讀寫：</p>' +
+      '<p class="kbd-note"><code>dashboards.payload.aiTasks</code></p>' +
+      '<p class="kbd-note">狀態：<code>todo</code> / <code>doing</code> / <code>waiting</code> / <code>done</code>；進度 0–100。</p></div>' +
+  '</div>';
+  h += '<div class="ai-agent-actions">' +
+    '<button type="button" class="btn btn-ghost" data-action="aiws-copy-json">複製 AI 待辦 JSON</button>' +
+    '<button type="button" class="btn btn-ghost" data-action="aiws-copy-prompt">複製 Agent 指令</button>' +
+    '<button type="button" class="btn btn-ghost" data-action="aiws-apply">套用 Agent 更新</button>' +
+  '</div>';
+  h += '</div></div>';
+  return h;
+}
+function aiOverviewHTML(){
+  var c = aiCounts();
+  var waiting = state.aiTasks.filter(function(t){ return t.status === 'waiting'; });
+  var doing = state.aiTasks.filter(function(t){ return t.status === 'doing'; });
+  var h = '<div class="card ai-mini"><div class="card-h">AI 工作區 <button type="button" class="ibtn" data-action="open-ai" title="開啟 AI 工作區">→</button></div><div class="card-b">';
+  if(!c.total){
+    h += '<div class="empty">尚無 AI 任務</div>';
+  } else {
+    h += '<div class="ai-mini-grid">' + AI_STATUSES.map(function(st){
+      return '<div class="m"><b>' + c[st] + '</b><span>' + AI_ST[st].replace('AI ', '') + '</span></div>';
+    }).join('') + '</div>';
+    if(waiting.length){
+      h += '<div class="ai-mini-note wait">等待確認：<b>' + esc(waiting[0].title) + '</b>' + (waiting.length > 1 ? ' 等 ' + waiting.length + ' 項' : '') + '</div>';
+    } else if(doing.length){
+      h += '<div class="ai-mini-note">Agent 正在處理：<b>' + esc(doing[0].title) + '</b></div>';
+    }
+  }
+  h += '</div></div>';
+  return h;
 }
 
 /* ================= 渲染：專案 ================= */
@@ -1200,7 +1457,7 @@ function reportSummaryText(R){
   }
   return lines.join('\n');
 }
-function fallbackCopy(text){
+function fallbackCopy(text, msg, title){
   var ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
@@ -1212,12 +1469,12 @@ function fallbackCopy(text){
   var ok = false;
   try{ ok = document.execCommand('copy'); }catch(e){}
   ta.remove();
-  if(ok) toast('已複製工作報表摘要');
-  else showCopyModal(text);
+  if(ok) toast(msg || '已複製工作報表摘要');
+  else showCopyModal(text, title);
 }
-function showCopyModal(text){
+function showCopyModal(text, title){
   openModal('<div class="modal" style="max-width:640px">' +
-    '<div class="modal-h">工作報表摘要<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
+    '<div class="modal-h">' + esc(title || '工作報表摘要') + '<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
     '<div class="modal-b"><p class="kbd-note" style="margin-top:0">瀏覽器不允許自動複製，請全選下面文字後按 Ctrl+C（Mac：⌘C）。</p>' +
       '<textarea rows="14" readonly data-autofocus>' + esc(text) + '</textarea></div>' +
     '<div class="modal-f"><div class="spacer"></div><button type="button" class="btn btn-ghost" data-action="close-modal">關閉</button></div>' +
@@ -1309,12 +1566,12 @@ function renderSettings(){
   h += '</div></div>';
   h += '<div class="stack">';
   h += '<div class="card"><div class="card-h">整合（規劃中）</div>';
-  h += '<div class="prow">GitHub 專案 <span class="dim">顯示 issue、PR 狀態</span><span class="pill p-low push">v1.6</span></div>';
+  h += '<div class="prow">GitHub 專案 <span class="dim">顯示 issue、PR 狀態</span><span class="pill p-low push">v1.7</span></div>';
   h += '<div class="prow">Google Calendar <span class="dim">同步行程</span><span class="pill p-low push">v2</span></div>';
   h += '<div class="prow">Outlook / 信件 <span class="dim">摘要與待辦萃取</span><span class="pill p-low push">v2</span></div>';
   h += '</div>';
   h += '<div class="card"><div class="card-h">關於</div><div class="card-b">';
-  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.5・純前端、無依賴・支援多日私人行程、Supabase 雲端同步與 Telegram 按鈕收集</p>';
+  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.6・純前端、無依賴・支援 AI 工作區、多日私人行程、Supabase 雲端同步與 Telegram 按鈕收集</p>';
   h += '<p class="kbd-note" style="margin:0">部署：將此資料夾上傳到 GitHub repo，開啟 Pages（main / root）即可上線，詳見 README.md。</p>';
   h += '</div></div>';
   h += '</div></div>';
@@ -1406,6 +1663,146 @@ function delTask(id){
     saveState(); render(); closeModal(); toast('已刪除任務');
   });
 }
+
+/* ================= 彈窗：AI 工作區 ================= */
+function aiHistoryHTML(t){
+  var items = (t.history || []).slice(-6).reverse();
+  if(!items.length) return '';
+  return '<div class="ai-history"><div class="mini-label">最近更新</div>' + items.map(function(x){
+    var when = x.at ? relTime(x.at) : '';
+    return '<div class="ai-history-row"><span>' + esc(AI_ST[x.status] || x.status) + ' · ' + aiClamp(x.progress) + '%</span>' +
+      '<span class="dim">' + esc(when) + '</span>' +
+      (x.note ? '<div class="ai-history-note">' + esc(x.note) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function openAITaskModal(id){
+  var t = id ? findAITask(id) : null;
+  if(id && !t) return;
+  var isEdit = !!t;
+  t = t || { id:'', title:'', instruction:'', status:'todo', progress:0, priority:'mid', owner:'AI Agent', due:today(), waitingFor:'', result:'', history:[] };
+  var statusOpts = AI_STATUSES.map(function(s){
+    return '<option value="' + s + '"' + (t.status === s ? ' selected' : '') + '>' + AI_ST[s] + '</option>';
+  }).join('');
+  var priOpts = ['high','mid','low'].map(function(p){
+    return '<option value="' + p + '"' + (t.priority === p ? ' selected' : '') + '>' + PRI[p] + '</option>';
+  }).join('');
+  var h = '<form class="modal ai-modal" data-form="ai" data-id="' + esc(t.id) + '">' +
+    '<div class="modal-h">' + (isEdit ? '編輯 AI 任務' : '新增 AI 任務') +
+      '<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
+    '<div class="modal-b">' +
+      '<p class="kbd-note" style="margin:0 0 12px">任務會同步到 AI 工作區；Agent 可讀取與更新狀態、進度與結果。</p>' +
+      '<div class="field"><label>標題</label><input name="title" data-autofocus value="' + esc(t.title) + '" placeholder="例如：整理本週會議逐字稿"></div>' +
+      '<div class="field"><label>給 AI 的指示</label><textarea name="instruction" rows="3" placeholder="背景、輸入資料、期望輸出、限制條件…">' + esc(t.instruction) + '</textarea></div>' +
+      '<div class="row3">' +
+        '<div class="field"><label>狀態</label><select name="status">' + statusOpts + '</select></div>' +
+        '<div class="field"><label>優先級</label><select name="priority">' + priOpts + '</select></div>' +
+        '<div class="field"><label>進度（0–100）</label><input type="number" name="progress" min="0" max="100" step="5" value="' + aiClamp(t.progress) + '"></div>' +
+      '</div>' +
+      '<div class="row2">' +
+        '<div class="field"><label>負責 Agent</label><input name="owner" value="' + esc(t.owner) + '" placeholder="AI Agent"></div>' +
+        '<div class="field"><label>到期日</label><input type="date" name="due" value="' + esc(t.due || '') + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>等待確認原因</label><textarea name="waitingFor" rows="2" placeholder="需要人工確認的事項（選填）">' + esc(t.waitingFor) + '</textarea></div>' +
+      '<div class="field"><label>完成結果</label><textarea name="result" rows="3" placeholder="Agent 完成後回報的成果（選填）">' + esc(t.result) + '</textarea></div>' +
+      (isEdit ? '<div class="field"><label>本次更新備註（會寫入紀錄）</label><input name="logNote" placeholder="例如：完成資料蒐集"></div>' : '') +
+      (isEdit ? aiHistoryHTML(t) : '') +
+    '</div>' +
+    '<div class="modal-f">' +
+      (isEdit ? '<button type="button" class="btn btn-danger" data-action="del-ai-task" data-id="' + esc(t.id) + '">刪除</button>' : '') +
+      '<span style="margin-left:auto"></span>' +
+      '<button type="button" class="btn btn-ghost" data-action="close-modal">取消</button>' +
+      '<button type="submit" class="btn btn-primary">' + (isEdit ? '儲存' : '新增') + '</button>' +
+    '</div>' +
+  '</form>';
+  openModal(h);
+}
+function saveAIForm(f){
+  var id = f.dataset.id;
+  var data = {
+    title: f.elements['title'].value.trim(),
+    instruction: f.elements['instruction'].value.trim(),
+    status: f.elements['status'].value,
+    priority: f.elements['priority'].value,
+    progress: +f.elements['progress'].value,
+    owner: f.elements['owner'].value.trim(),
+    due: f.elements['due'].value || null,
+    waitingFor: f.elements['waitingFor'].value.trim(),
+    result: f.elements['result'].value.trim()
+  };
+  if(!data.title){ toast('請輸入標題'); return; }
+  if(data.status === 'done') data.progress = 100;
+  if(data.status === 'todo') data.progress = 0;
+  var note = f.elements['logNote'] ? f.elements['logNote'].value.trim() : '';
+  if(id){
+    var t = findAITask(id);
+    if(!t) return;
+    aiPatch(t, data, note || '手動更新');
+  } else {
+    state.aiTasks.push(aiCreate({ title:data.title, instruction:data.instruction, status:data.status, priority:data.priority, progress:data.progress, owner:data.owner, due:data.due, waitingFor:data.waitingFor, result:data.result, logNote:note || '建立 AI 任務' }));
+  }
+  saveState(); render(); closeModal(); toast(id ? '已更新 AI 任務' : '已新增 AI 任務');
+}
+function delAITask(id){
+  confirmBox('確定要刪除這個 AI 任務嗎？', function(){
+    state.aiTasks = state.aiTasks.filter(function(x){ return x.id !== id; });
+    saveState(); render(); closeModal(); toast('已刪除 AI 任務');
+  });
+}
+function setAIStatus(id, status){
+  var t = findAITask(id);
+  if(!t || !AI_ST[status] || t.status === status) return;
+  var patch = { status:status };
+  if(status === 'doing' && t.status === 'todo' && t.progress === 0) patch.progress = 10;
+  aiPatch(t, patch, '狀態改為「' + AI_ST[status] + '」');
+  saveState(); render(); toast('已移至「' + AI_ST[status] + '」');
+}
+function openAIUpdateModal(){
+  var exampleId = state.aiTasks[0] ? state.aiTasks[0].id : 'ai_task_id';
+  var ph = '[{"id":"' + exampleId + '","status":"doing","progress":40,"note":"已開始處理"},{"id":"...","status":"done","progress":100,"result":"已完成"}]';
+  var h = '<form class="modal ai-modal" data-form="ai-update">' +
+    '<div class="modal-h">套用 Agent 更新<button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
+    '<div class="modal-b">' +
+      '<p class="kbd-note" style="margin:0 0 10px">貼上 Agent 回傳的 JSON 陣列。可用 <code>id</code> 更新既有任務；沒有 id 但有 <code>title</code> 時會新增任務。</p>' +
+      '<div class="field" style="margin-bottom:0"><label>JSON 更新</label><textarea name="payload" rows="12" placeholder="' + esc(ph) + '"></textarea></div>' +
+    '</div>' +
+    '<div class="modal-f"><span style="margin-left:auto"></span><button type="button" class="btn btn-ghost" data-action="close-modal">取消</button><button type="submit" class="btn btn-primary">套用更新</button></div>' +
+  '</form>';
+  openModal(h);
+}
+function aiApplyPayload(raw){
+  var data;
+  try{ data = typeof raw === 'string' ? JSON.parse(raw) : raw; }
+  catch(e){ toast('JSON 格式錯誤'); return null; }
+  var list = Array.isArray(data) ? data : (data && Array.isArray(data.updates) ? data.updates : (data && Array.isArray(data.aiTasks) ? data.aiTasks : (data && Array.isArray(data.tasks) ? data.tasks : null)));
+  if(!list){ toast('請提供 JSON 陣列或 updates 陣列'); return null; }
+  var updated = 0, added = 0;
+  list.forEach(function(u){
+    if(!u || typeof u !== 'object') return;
+    var t = u.id ? findAITask(u.id) : null;
+    if(t){ aiPatch(t, u, u.note || 'Agent 更新'); updated++; }
+    else if(u.title){ state.aiTasks.push(aiCreate(u)); added++; }
+  });
+  if(!updated && !added){ toast('沒有可套用的更新'); return null; }
+  saveState(); render();
+  return { updated:updated, added:added };
+}
+function applyAIUpdateForm(f){
+  var res = aiApplyPayload(f.elements['payload'].value.trim());
+  if(!res) return;
+  closeModal();
+  toast('已套用 ' + res.updated + ' 筆更新' + (res.added ? '、新增 ' + res.added + ' 筆' : ''));
+}
+function copyText(text, msg){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    try{
+      navigator.clipboard.writeText(text).then(function(){ toast(msg); }, function(){ fallbackCopy(text, msg, '複製內容'); });
+      return;
+    }catch(e){}
+  }
+  fallbackCopy(text, msg, '複製內容');
+}
+function copyAIJSON(){ copyText(aiJSON(), '已複製 AI 待辦 JSON'); }
+function copyAIPrompt(){ copyText(aiPromptText(), '已複製 Agent 指令'); }
 
 /* ================= 彈窗：專案 ================= */
 function openProjectModal(id){
@@ -2061,7 +2458,7 @@ function openSearch(){
     '<div class="modal search-modal">' +
       '<div class="search-bar">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
-        '<input id="gsearch" data-autofocus placeholder="搜尋任務、會議、行程、文件、連結、專案…">' +
+        '<input id="gsearch" data-autofocus placeholder="搜尋任務、AI、會議、行程、文件、連結、專案…">' +
       '</div>' +
       '<div id="gresults" style="overflow:auto;max-height:60vh"></div>' +
     '</div>');
@@ -2085,6 +2482,12 @@ function renderSearch(q){
     return (x.title + ' ' + (x.note || '')).toLowerCase().indexOf(lq) >= 0;
   }).slice(0, 5).map(function(x){
     return '<div class="srow" data-action="open-task" data-id="' + x.id + '"><span class="st">' + esc(x.title) + '</span><span class="dim">' + ST[x.status] + '</span></div>';
+  }));
+  group('AI 工作區', state.aiTasks.filter(function(x){
+    var hay = x.title + ' ' + (x.instruction || '') + ' ' + (x.waitingFor || '') + ' ' + (x.result || '') + ' ' + (x.owner || '');
+    return hay.toLowerCase().indexOf(lq) >= 0;
+  }).slice(0, 5).map(function(x){
+    return '<div class="srow" data-action="open-ai-task" data-id="' + x.id + '"><span class="st">' + esc(x.title) + '</span><span class="dim">' + AI_ST[x.status] + '</span></div>';
   }));
   group('會議', state.meetings.filter(function(m){
     var hay = m.title + ' ' + (m.notes || '') + ' ' + (m.location || '') + ' ' + m.actionItems.map(function(a){ return a.text; }).join(' ');
@@ -2139,9 +2542,17 @@ document.addEventListener('click', function(e){
         var hid = box.querySelector('input[type="hidden"]');
         if(hid) hid.value = el.dataset.val;
         if(box.dataset.seg === 'tasksview'){ taskViewMode = el.dataset.val; renderTasks(); }
+        else if(box.dataset.seg === 'taskarea'){ setTaskArea(el.dataset.val); }
       }
       break;
     }
+    case 'open-ai': openAIWorkspace(); break;
+    case 'open-ai-task': openAITaskModal(el.dataset.id || null); break;
+    case 'del-ai-task': delAITask(el.dataset.id); break;
+    case 'aiws-status': setAIStatus(el.dataset.id, el.dataset.status); break;
+    case 'aiws-copy-json': copyAIJSON(); break;
+    case 'aiws-copy-prompt': copyAIPrompt(); break;
+    case 'aiws-apply': openAIUpdateModal(); break;
     case 'open-task': openTaskModal(el.dataset.id || null); break;
     case 'toggle-task': toggleTask(el.dataset.id); break;
     case 'del-task': delTask(el.dataset.id); break;
@@ -2210,7 +2621,7 @@ document.addEventListener('click', function(e){
       break;
     case 'clear-all':
       confirmBox('確定清除所有資料？此動作無法復原，建議先匯出備份。', function(){
-        state = { version: 1, tasks: [], projects: [], meetings: [], events: [], docs: [], hours: [], links: [] };
+        state = { version: 1, tasks: [], projects: [], meetings: [], events: [], docs: [], hours: [], links: [], aiTasks: [] };
         saveState(); render(); toast('已清除所有資料');
       });
       break;
@@ -2241,6 +2652,8 @@ document.addEventListener('submit', function(e){
   if(!f) return;
   var kind = f.dataset.form;
   if(kind === 'task') saveTaskForm(f);
+  else if(kind === 'ai') saveAIForm(f);
+  else if(kind === 'ai-update') applyAIUpdateForm(f);
   else if(kind === 'project') saveProjectForm(f);
   else if(kind === 'meeting') saveMeetingForm(f);
   else if(kind === 'event') saveEventForm(f);
@@ -2343,6 +2756,45 @@ document.addEventListener('drop', function(e){
   try{ id = e.dataTransfer.getData('text/plain') || id; }catch(err){}
   if(id) setTaskStatus(id, z.dataset.dropStatus);
 });
+
+/* ================= AI Agent API ================= */
+window.wdAI = {
+  schemaVersion: 1,
+  statuses: AI_STATUSES.slice(),
+  list: function(status){
+    return state.aiTasks.filter(function(t){ return !status || t.status === status; }).map(aiCopy);
+  },
+  get: function(id){ var t = findAITask(id); return t ? aiCopy(t) : null; },
+  add: function(data){
+    if(!data || !String(data.title || '').trim()) throw new Error('AI 任務需要 title');
+    var t = aiCreate(data);
+    state.aiTasks.push(t);
+    saveState(); render();
+    return aiCopy(t);
+  },
+  update: function(id, patch){
+    var t = findAITask(id);
+    if(!t) throw new Error('找不到 AI 任務：' + id);
+    aiPatch(t, patch || {}, (patch && patch.note) || 'Agent 更新');
+    saveState(); render();
+    return aiCopy(t);
+  },
+  complete: function(id, result){
+    var t = findAITask(id);
+    if(!t) throw new Error('找不到 AI 任務：' + id);
+    aiPatch(t, { status:'done', progress:100, result:result || t.result || '' }, 'Agent 完成');
+    saveState(); render();
+    return aiCopy(t);
+  },
+  remove: function(id){
+    state.aiTasks = state.aiTasks.filter(function(t){ return t.id !== id; });
+    saveState(); render();
+  },
+  apply: function(payload){ return aiApplyPayload(payload); },
+  exportJSON: aiJSON,
+  prompt: aiPromptText,
+  open: openAIWorkspace
+};
 
 /* ================= 啟動 ================= */
 render();
