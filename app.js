@@ -57,7 +57,7 @@ function isOverdue(t){ return t.due && t.status !== 'done' && t.due < today(); }
 var ST = { todo:'待辦', doing:'進行中', done:'完成' };
 var PRI = { high:'高', mid:'中', low:'低' };
 var PRI_RANK = { high:0, mid:1, low:2 };
-var TITLES = { overview:'總覽', tasks:'任務', projects:'專案', meetings:'會議', docs:'文件', stats:'統計', fun:'摸魚區', settings:'設定' };
+var TITLES = { overview:'總覽', tasks:'任務', projects:'專案', meetings:'日曆', docs:'文件', stats:'統計', fun:'摸魚區', settings:'設定' };
 var LS_KEY = 'wd-v1-state';
 var LS_SYNC = 'wd-sync';
 
