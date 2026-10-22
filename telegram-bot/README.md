@@ -1,15 +1,15 @@
-# Telegram → 任務／私人行程／會議（Supabase Edge Function）
+# Telegram → 任務／私人行程／會議／AI 待辦（Supabase Edge Function）
 
-用 Telegram 傳訊息，Bot 會先顯示按鈕；按下「任務／私人行程／會議」後才寫入儀錶板。整套運作在 Supabase 免費方案內，不需要自己的伺服器。
+用 Telegram 傳訊息，Bot 會先顯示按鈕；按下「任務／私人行程／會議／AI 待辦」後才寫入儀錶板。整套運作在 Supabase 免費方案內，不需要自己的伺服器。
 
 ```
 Telegram → Bot → Supabase Edge Function（telegram-task）
         → telegram_pending（等待按鈕確認）
-        → commit_telegram_pending（原子追加到 tasks／events／meetings）
+        → commit_telegram_pending（原子追加到 tasks／events／meetings／aiTasks）
         → dashboards 資料列 → 儀錶板 30 秒內自動更新
 ```
 
-> 支援**任務、私人行程、會議**。私人行程可設定 2 天以上的多日區間；會議的地點、參與者與行動項可之後在儀錶板補上。
+> 支援**任務、私人行程、會議、AI 待辦**。私人行程可設定 2 天以上的多日區間；會議的地點、參與者與行動項可之後在儀錶板補上；AI 待辦會直接進入「任務 → AI 工作區」。
 
 ---
 
@@ -26,6 +26,7 @@ Telegram → Bot → Supabase Edge Function（telegram-task）
 | `出差 10/25 三天` | 按「私人行程」後新增 10/25～10/27 |
 | `旅遊 明天 兩天一夜` | 按「私人行程」後新增 2 天行程 |
 | `專案會議 週五 14:00` | 按「會議」後新增 |
+| `整理競品資料 明天` | 按「AI 待辦」後放到任務 → AI 工作區的 AI 待辦 |
 | `/today` | 回覆今天的待辦與逾期任務 |
 | `/test` | 送出一顆測試按鈕，確認聊天室能顯示 inline keyboard |
 | `/diag` | 檢查 Secrets、Webhook、按鈕暫存 RPC 是否正常 |
@@ -38,7 +39,8 @@ Telegram → Bot → Supabase Edge Function（telegram-task）
 - 多日區間：`10/25-10/27`、`10/25~10/27`、`10/25 到 10/27`、`明天到後天`；按「私人行程」才會使用結束日期。
 - 天數寫法：`10/25 三天`、`明天 兩天`、`三天兩夜`（日期與天數之間要留空格；只寫天數則從今天起算）。
 - 時間：`18:30`、`下午3點`、`晚上8點半`（私人行程／會議會使用；留空＝全天）。
-- 優先級：`#高`、`#中`、`#低`（或單獨的 `高`／`低`），只影響任務。
+- 優先級：`#高`、`#中`、`#低`（或單獨的 `高`／`低`），會用在任務與 AI 待辦。
+- AI 待辦會保留原始需求、日期與優先級；多日區間與時間只使用開始日期，不會建立多日 AI 任務。
 - 按下按鈕前都不會寫入；按「取消」也不會留下資料。
 
 ---
@@ -141,7 +143,7 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 2. 它會回覆你的 chat id，例如 `123456789`
 3. 回到 Supabase → Secrets → 把 `ALLOWED_CHAT_ID` 改成這個號碼 → Save
 4. 傳 `/start`，應該看到使用說明
-5. 傳 `買牛奶 明天`，Bot 會顯示「任務／私人行程／會議／取消」按鈕
+5. 傳 `買牛奶 明天`，Bot 會顯示「任務／AI 待辦／私人行程／會議／取消」按鈕
 6. 按「任務」，看到 ✅ 後即完成
 
 > 授權號碼設定前，bot 只會回覆「尚未設定授權」，不會寫入任何資料。按鈕按下去之前也不會寫入。
@@ -158,8 +160,8 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 
 ## 運作細節
 
-- **先確認才寫入**：收到訊息只會建立一筆 `telegram_pending`（保留 2 天）並回覆按鈕；按下任務／私人行程／會議才會寫入儀錶板。
-- **原子寫入**：`commit_telegram_pending` 在資料庫內直接 append 到 `tasks`、`events` 或 `meetings`，不會讀取整份資料再覆蓋。
+- **先確認才寫入**：收到訊息只會建立一筆 `telegram_pending`（保留 2 天）並回覆按鈕；按下任務／私人行程／會議／AI 待辦才會寫入儀錶板。
+- **原子寫入**：`commit_telegram_pending` 在資料庫內直接 append 到 `tasks`、`events`、`meetings` 或 `aiTasks`，不會讀取整份資料再覆蓋。
 - **去重**：每則 Telegram 訊息以 `chatId:message_id` 標記（欄位 `tgMsgId`）；webhook 重送或重複按按鈕時不會重複新增。
 - **時區**：日期以台灣時間（UTC+8）計算。
 - **觸發來源**：備註會寫「來自 Telegram」，方便辨識。
@@ -200,4 +202,5 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 2. Edge Functions → `telegram-task` → 貼上新版 [`index.ts`](./index.ts) → Deploy。
 3. Secrets、Webhook 不用改。
 4. 對 Bot 傳 `/test`，確認出現測試按鈕；再傳 `/diag`，確認「按鈕暫存 RPC：正常」。
-5. 傳 `買牛奶 明天`，確認出現四個按鈕；按「任務」後確認寫入成功。
+5. 傳 `買牛奶 明天`，確認出現五個按鈕；按「任務」後確認寫入成功。
+6. 再傳 `整理競品資料 明天`，按「AI 待辦」，確認出現在「任務 → AI 工作區 → AI 待辦」。

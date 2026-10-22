@@ -253,10 +253,11 @@ var HELP_TEXT = [
   '🐟 工作儀錶板 Bot',
   '',
   '直接傳訊息，Bot 會顯示按鈕，',
-  '按下「任務／私人行程／會議」後才會寫入：',
+  '按下「任務／私人行程／會議／AI 待辦」後才會寫入：',
   '・買牛奶 明天',
   '・牙醫回診 10/25 18:30',
   '・專案會議 週五 14:00',
+  '・整理競品資料 明天（按 AI 待辦）',
   '・出差 10/25-10/27',
   '',
   '日期：今天／明天／後天、週一～週日、10/25、10月25日',
@@ -266,7 +267,7 @@ var HELP_TEXT = [
   '優先：加上 #高 #中 #低（任務用）',
   '',
   '指令：',
-  '/add 新增任務／私人行程／會議',
+  '/add 新增任務／私人行程／會議／AI 待辦',
   '/today 今天待辦',
   '/test 測試按鈕是否正常',
   '/diag 檢查 Bot 設定與按鈕資料庫',
@@ -368,20 +369,22 @@ function discardPending(token, chatId) {
 function kindLabel(kind) {
   if (kind === 'event') return '私人行程';
   if (kind === 'meeting') return '會議';
+  if (kind === 'ai') return 'AI 待辦';
   return '任務';
 }
 function fmtDateSpan(start, end) {
   return (end && end !== start) ? fmtDate(start) + ' – ' + fmtDate(end) : fmtDate(start);
 }
 function buildAddedText(kind, item) {
-  var date = kind === 'task' ? item.due : item.date;
-  var lines = ['✅ 已新增' + kindLabel(kind), '', item.title];
+  var date = kind === 'task' || kind === 'ai' ? item.due : item.date;
+  var lines = ['✅ 已新增' + (kind === 'ai' ? ' ' : '') + kindLabel(kind), '', item.title];
   var when = '📅 ' + (kind === 'event' ? fmtDateSpan(item.date, item.endDate) : fmtDate(date));
   if (item.time) when += '・🕒 ' + item.time;
   lines.push(when);
-  if (kind === 'task') lines.push('優先：' + (PRI_LABEL[item.priority] || '中'));
+  if (kind === 'task' || kind === 'ai') lines.push('優先：' + (PRI_LABEL[item.priority] || '中'));
   if (kind === 'event') lines.push('', '可到行事曆補上地點與備註。');
   if (kind === 'meeting') lines.push('', '可到會議頁補上地點、參與者與行動項。');
+  if (kind === 'ai') lines.push('', '已放到「任務 → AI 工作區 → AI 待辦」，AI Agent 可直接接手。');
   lines.push('', '儀錶板最慢 30 秒內會自動出現（需開啟「自動接收雲端變更」）。');
   return lines.join('\n');
 }
@@ -389,7 +392,11 @@ function pendingPrompt(p) {
   var lines = ['要新增哪一種？', '', '📝 ' + p.title, '📅 ' + fmtDateSpan(p.date, p.endDate)];
   if (p.time) lines[lines.length - 1] += '・🕒 ' + p.time;
   if (p.priority === 'high' || p.priority === 'low') lines.push('優先：' + PRI_LABEL[p.priority]);
-  if (p.endDate && p.endDate !== p.date) lines.push('', '多日區間請選「私人行程」；會議維持單日。');
+  if (p.endDate && p.endDate !== p.date) {
+    lines.push('', '多日區間請選「私人行程」；AI 待辦只使用開始日期。');
+  } else {
+    lines.push('', '選「AI 待辦」會把這段需求放進任務 → AI 工作區。');
+  }
   lines.push('', '按下按鈕後才會寫入儀錶板。');
   return lines.join('\n');
 }
@@ -398,10 +405,13 @@ function typeKeyboard(token) {
     inline_keyboard: [
       [
         { text: '✅ 任務', callback_data: 'q:t:' + token },
-        { text: '📅 私人行程', callback_data: 'q:e:' + token }
+        { text: '🤖 AI 待辦', callback_data: 'q:a:' + token }
       ],
       [
-        { text: '👥 會議', callback_data: 'q:m:' + token },
+        { text: '📅 私人行程', callback_data: 'q:e:' + token },
+        { text: '👥 會議', callback_data: 'q:m:' + token }
+      ],
+      [
         { text: '✖ 取消', callback_data: 'q:x:' + token }
       ]
     ]
@@ -537,7 +547,7 @@ async function handleMessage(msg) {
   }
 
   if (cmd && cmd !== 'add' && cmd !== 'task') {
-    await tgSend(chatId, '目前支援：直接傳訊息（按鈕選任務／私人行程／會議）、/add、/today、/help、/id');
+    await tgSend(chatId, '目前支援：直接傳訊息（按鈕選任務／私人行程／會議／AI 待辦）、/add、/today、/help、/id');
     return;
   }
 
@@ -560,7 +570,7 @@ async function handleMessage(msg) {
     time: t.time || '',
     priority: t.priority,
     tgMsgId: chatKey + ':' + msg.message_id,
-    sourceText: text
+    sourceText: input
   };
 
   try {
@@ -594,14 +604,15 @@ async function handleCallback(cb) {
     return;
   }
 
-  var m = String(cb.data || '').match(/^q:([temx]):([a-z0-9]{8,40})$/);
+  var m = String(cb.data || '').match(/^q:([temxa]):([a-z0-9]{8,40})$/);
   if (!m) {
     await tgAnswer(cb.id);
     return;
   }
   var action = m[1];
   var token = m[2];
-  var kind = action === 't' ? 'task' : (action === 'e' ? 'event' : 'meeting');
+  var kindMap = { t: 'task', e: 'event', m: 'meeting', a: 'ai' };
+  var kind = kindMap[action];
 
   if (action === 'x') {
     try {
@@ -633,7 +644,7 @@ async function handleCallback(cb) {
       await tgEdit(chatId, messageId, 'ℹ️ 這則訊息已經處理過了。');
       return;
     }
-    await tgAnswer(cb.id, '已新增' + kindLabel(kind));
+    await tgAnswer(cb.id, '已新增' + (kind === 'ai' ? ' ' : '') + kindLabel(kind));
     await tgEdit(chatId, messageId, buildAddedText(kind, res.item));
   } catch (e) {
     console.error('telegram-task commit error', e);

@@ -16,7 +16,7 @@
 | 摸魚區 | 常用網站收藏：卡片式、favicon、點擊開新分頁、新增/編輯/刪除 |
 | 設定 | JSON 匯出／匯入（也可直接把 .json 拖進頁面）、**Supabase 雲端同步**、示範資料、清除資料 |
 
-其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議，支援多日行程，見 `telegram-bot/README.md`）。AI 工作區另提供 `window.wdAI` 瀏覽器 API，方便未來的 AI Agent 讀取與更新。
+其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議／AI 待辦，支援多日行程，見 `telegram-bot/README.md`）。AI 工作區另提供 `window.wdAI` 瀏覽器 API，方便未來的 AI Agent 讀取與更新。
 
 > 工作報表口徑：完成數依「完成日」，未完成依「到期日」；兩者分開呈現。行動項與里程碑自 v1.2 起記錄完成日（`doneAt`），較早完成的舊資料不會列入期間統計。私人行程只顯示於行事曆，不列入工作報表與工時統計。
 
@@ -81,7 +81,7 @@ create policy "anon all" on dashboards
 
 ### 透過 Telegram 新增任務（選用）
 
-設定一支 Telegram Bot，就能直接傳「買牛奶 明天」把任務寫進雲端，詳見 [`telegram-bot/README.md`](telegram-bot/README.md)。
+設定一支 Telegram Bot，就能直接傳「買牛奶 明天」把任務寫進雲端；按「AI 待辦」則會把需求放進「任務 → AI 工作區」。詳見 [`telegram-bot/README.md`](telegram-bot/README.md)。
 
 ### AI 工作區與 Agent
 

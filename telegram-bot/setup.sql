@@ -1,4 +1,4 @@
--- Telegram 收集：按鈕待確認 + 原子追加（任務／私人行程／會議）
+-- Telegram 收集：按鈕待確認 + 原子追加（任務／私人行程／會議／AI 待辦）
 -- 在 Supabase Dashboard → SQL Editor 貼上執行。舊版可整份重跑，不會影響既有資料。
 --
 -- 為什麼需要它？
@@ -116,7 +116,7 @@ begin
 end;
 $$;
 
--- 按下任務／私人行程／會議：取出待確認資料，原子追加到對應陣列
+-- 按下任務／私人行程／會議／AI 待辦：取出待確認資料，原子追加到對應陣列
 create or replace function commit_telegram_pending(
   p_id text,
   p_token text,
@@ -137,14 +137,15 @@ declare
   v_now_ms bigint;
   v_dup boolean;
 begin
-  if p_kind not in ('task', 'event', 'meeting') then
+  if p_kind not in ('task', 'event', 'meeting', 'ai') then
     raise exception 'invalid kind: %', p_kind;
   end if;
 
   v_key := case p_kind
     when 'task' then 'tasks'
     when 'event' then 'events'
-    else 'meetings'
+    when 'meeting' then 'meetings'
+    else 'aiTasks'
   end;
 
   delete from telegram_pending where created_at < now() - interval '2 days';
@@ -203,6 +204,32 @@ begin
       'location', '',
       'note', '來自 Telegram',
       'createdAt', to_char(now() at time zone 'Asia/Taipei', 'YYYY-MM-DD'),
+      'tgMsgId', v_pending->>'tgMsgId'
+    );
+  elsif p_kind = 'ai' then
+    v_item := jsonb_build_object(
+      'id', gen_random_uuid()::text,
+      'title', v_pending->>'title',
+      'instruction', '來自 Telegram：' || coalesce(nullif(v_pending->>'sourceText', ''), v_pending->>'title', ''),
+      'status', 'todo',
+      'progress', 0,
+      'priority', coalesce(v_pending->>'priority', 'mid'),
+      'owner', 'AI Agent',
+      'due', v_pending->>'date',
+      'waitingFor', '',
+      'result', '',
+      'createdAt', to_char(now() at time zone 'Asia/Taipei', 'YYYY-MM-DD'),
+      'updatedAt', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'startedAt', null,
+      'completedAt', null,
+      'history', jsonb_build_array(
+        jsonb_build_object(
+          'at', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+          'status', 'todo',
+          'progress', 0,
+          'note', '來自 Telegram 按鈕'
+        )
+      ),
       'tgMsgId', v_pending->>'tgMsgId'
     );
   else
