@@ -1273,7 +1273,7 @@ function renderSettings(){
   h += '<div class="prow">Outlook / 信件 <span class="dim">摘要與待辦萃取</span><span class="pill p-low push">v2</span></div>';
   h += '</div>';
   h += '<div class="card"><div class="card-h">關於</div><div class="card-b">';
-  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.3・純前端、無依賴・支援 Supabase 雲端同步</p>';
+  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.4・純前端、無依賴・支援 Supabase 雲端同步與 Telegram 按鈕收集</p>';
   h += '<p class="kbd-note" style="margin:0">部署：將此資料夾上傳到 GitHub repo，開啟 Pages（main / root）即可上線，詳見 README.md。</p>';
   h += '</div></div>';
   h += '</div></div>';

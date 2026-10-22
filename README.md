@@ -15,7 +15,7 @@
 | 摸魚區 | 常用網站收藏：卡片式、favicon、點擊開新分頁、新增/編輯/刪除 |
 | 設定 | JSON 匯出／匯入（也可直接把 .json 拖進頁面）、**Supabase 雲端同步**、示範資料、清除資料 |
 
-其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換。
+其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議，見 `telegram-bot/README.md`）。
 
 > 工作報表口徑：完成數依「完成日」，未完成依「到期日」；兩者分開呈現。行動項與里程碑自 v1.2 起記錄完成日（`doneAt`），較早完成的舊資料不會列入期間統計。私人行程只顯示於行事曆，不列入工作報表與工時統計。
 
@@ -25,7 +25,7 @@
 index.html    入口（部署時的主要檔案）
 styles.css    樣式
 app.js        核心邏輯（資料、儲存、互動）
-telegram-bot/ Telegram → 任務（Supabase Edge Function，選用）
+telegram-bot/ Telegram → 任務／私人行程／會議（Supabase Edge Function，選用）
 prototype.html  早期風格原型（可刪除）
 README.md     本說明
 ```
@@ -128,4 +128,4 @@ https://<你的帳號>.github.io/work-dashboard/
 - **v1.5**：GitHub 專案面板（顯示 issue、PR 狀態）
 - **v2**：Google Calendar／Outlook 日曆整合（OAuth）、信件待辦萃取
 - 雲端同步：✅ 已完成（Supabase；可自訂 API 替換）
-- Telegram 任務收集：✅ 任務已完成（Edge Function）；會議／行程待加
+- Telegram 收集：✅ 任務／私人行程／會議（按鈕確認；Edge Function）
