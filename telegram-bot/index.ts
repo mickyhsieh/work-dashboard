@@ -375,7 +375,7 @@ function kindLabel(kind) {
 function fmtDateSpan(start, end) {
   return (end && end !== start) ? fmtDate(start) + ' – ' + fmtDate(end) : fmtDate(start);
 }
-function buildAddedText(kind, item) {
+function buildAddedText(kind, item, count) {
   var date = kind === 'task' || kind === 'ai' ? item.due : item.date;
   var lines = ['✅ 已新增' + (kind === 'ai' ? ' ' : '') + kindLabel(kind), '', item.title];
   var when = '📅 ' + (kind === 'event' ? fmtDateSpan(item.date, item.endDate) : fmtDate(date));
@@ -384,7 +384,10 @@ function buildAddedText(kind, item) {
   if (kind === 'task' || kind === 'ai') lines.push('優先：' + (PRI_LABEL[item.priority] || '中'));
   if (kind === 'event') lines.push('', '可到行事曆補上地點與備註。');
   if (kind === 'meeting') lines.push('', '可到會議頁補上地點、參與者與行動項。');
-  if (kind === 'ai') lines.push('', '已放到「任務 → AI 工作區 → AI 待辦」，AI Agent 可直接接手。');
+  if (kind === 'ai') {
+    lines.push('', '已放到「任務 → AI 工作區 → AI 待辦」，AI Agent 可直接接手。');
+    if (typeof count === 'number') lines.push('雲端 AI 待辦共 ' + count + ' 筆。');
+  }
   lines.push('', '儀錶板最慢 30 秒內會自動出現（需開啟「自動接收雲端變更」）。');
   return lines.join('\n');
 }
@@ -663,7 +666,7 @@ async function handleCallback(cb) {
       return;
     }
     await tgAnswer(cb.id, '已新增' + (kind === 'ai' ? ' ' : '') + kindLabel(kind));
-    await tgEdit(chatId, messageId, buildAddedText(kind, res.item));
+    await tgEdit(chatId, messageId, buildAddedText(kind, res.item, res.count));
   } catch (e) {
     console.error('telegram-task commit error', e);
     await tgAnswer(cb.id, '寫入失敗');
