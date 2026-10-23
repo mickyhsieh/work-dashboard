@@ -700,9 +700,47 @@ function aiAgentPanelHTML(){
     '<button type="button" class="btn btn-ghost" data-action="aiws-copy-json">複製 AI 待辦 JSON</button>' +
     '<button type="button" class="btn btn-ghost" data-action="aiws-copy-prompt">複製 Agent 指令</button>' +
     '<button type="button" class="btn btn-ghost" data-action="aiws-apply">套用 Agent 更新</button>' +
+    '<button type="button" class="btn btn-ghost" data-action="aiws-cloud-merge">檢查／補回雲端 AI 待辦</button>' +
   '</div>';
   h += '</div></div>';
   return h;
+}
+function aiCloudMerge(){
+  syncCfgFromInputs();
+  if(!sbReady()){ toast('請先到設定完成雲端同步'); return; }
+  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
+    .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
+    .then(function(arr){
+      if(!arr || !arr.length){ toast('雲端還沒有資料列，請先確認同步設定'); return; }
+      var remote = arr[0];
+      var cloud = (remote.payload && Array.isArray(remote.payload.aiTasks)) ? remote.payload.aiTasks : [];
+      var seen = {};
+      state.aiTasks.forEach(function(t){
+        if(t && t.id) seen['id:' + t.id] = true;
+        if(t && t.tgMsgId) seen['tg:' + t.tgMsgId] = true;
+      });
+      var missing = cloud.filter(function(t){
+        if(!t || typeof t !== 'object' || !t.title) return false;
+        if(t.id && seen['id:' + t.id]) return false;
+        if(t.tgMsgId && seen['tg:' + t.tgMsgId]) return false;
+        return true;
+      });
+      if(!cloud.length){
+        toast('雲端 AI 待辦 0 筆：請確認 Telegram 的 Project URL／文件金鑰與本頁相同');
+        return;
+      }
+      if(!missing.length){
+        openAIWorkspace();
+        toast('雲端 AI 待辦 ' + cloud.length + ' 筆，本機已同步');
+        return;
+      }
+      confirmBox('雲端 AI 待辦 ' + cloud.length + ' 筆，本機缺少 ' + missing.length + ' 筆（雲端更新 ' + fmtDT(remote.updated_at) + '）。要補回並開啟 AI 工作區嗎？', function(){
+        missing.forEach(function(t){ state.aiTasks.push(normalizeAITask(aiCopy(t))); });
+        saveState(); openAIWorkspace();
+        toast('已從雲端補回 ' + missing.length + ' 筆 AI 待辦');
+      });
+    })
+    .catch(function(err){ toast('讀取雲端 AI 待辦失敗：' + syncErrMsg(err.res, err)); });
 }
 function aiOverviewHTML(){
   var c = aiCounts();
@@ -2285,7 +2323,7 @@ function applyCloudPayload(remote, silent){
   syncCfg.cloudUpdatedAt = remote.updated_at || null;
   if(remote.updated_at) syncCfg.lastPullAt = remote.updated_at;
   saveSyncCfg(); updateSyncUI();
-  if(!silent) toast('已從雲端載入資料');
+  if(!silent) toast('已從雲端載入資料' + (state.aiTasks.length ? '（AI 待辦 ' + state.aiTasks.length + ' 筆，請到任務 → AI 工作區）' : ''));
 }
 function pullFromCloud(confirmFirst){
   syncCfgFromInputs();
@@ -2553,6 +2591,7 @@ document.addEventListener('click', function(e){
     case 'aiws-copy-json': copyAIJSON(); break;
     case 'aiws-copy-prompt': copyAIPrompt(); break;
     case 'aiws-apply': openAIUpdateModal(); break;
+    case 'aiws-cloud-merge': aiCloudMerge(); break;
     case 'open-task': openTaskModal(el.dataset.id || null); break;
     case 'toggle-task': toggleTask(el.dataset.id); break;
     case 'del-task': delTask(el.dataset.id); break;

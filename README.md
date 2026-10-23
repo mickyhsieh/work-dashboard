@@ -120,6 +120,8 @@ wdAI.apply([{ id, status: 'doing', progress: 60 }])
 
 AI 工作區下方也提供「複製 AI 待辦 JSON」、「複製 Agent 指令」、「套用 Agent 更新」，可把任務資料交給雲端 Agent，再把回傳的 JSON 貼回來。Agent 直接寫 Supabase 時，請先取得最新 payload，以 `id` 更新 `payload.aiTasks`，保留其他任務與 dashboard 欄位，並更新 `updated_at`，避免覆蓋其他裝置的變更。
 
+若 Telegram 顯示已新增 AI 待辦、但看板沒看到，請到「任務 → AI 工作區」，按最下方的「檢查／補回雲端 AI 待辦」。它會直接讀取目前同步設定指向的雲端資料列，顯示雲端 AI 待辦筆數，並可把本機缺少的項目補回。若顯示 0 筆，代表 Telegram 的 `DASH_URL`／`DASH_ID` 與看板同步設定不同，或雲端資料已被其他分頁覆蓋。
+
 ### 注意
 
 - 「文件金鑰」等於這份資料的密碼，請勿外流

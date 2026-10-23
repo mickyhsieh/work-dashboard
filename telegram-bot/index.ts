@@ -521,6 +521,24 @@ async function handleMessage(msg) {
       diag.push('按鈕暫存 RPC：失敗（' + errText(e) + '）');
     }
     try {
+      var rows = await sbGet(rowQuery('payload,updated_at'));
+      if (!rows || !rows.length) {
+        diag.push('雲端資料列：找不到（DASH_ID 與看板文件金鑰可能不同）');
+      } else {
+        var payload = rows[0].payload || {};
+        var aiTasks = Array.isArray(payload.aiTasks) ? payload.aiTasks : [];
+        diag.push('雲端資料列：已找到');
+        diag.push('雲端 AI 待辦：' + aiTasks.length + ' 筆');
+        if (aiTasks.length) {
+          var latestAI = aiTasks[aiTasks.length - 1];
+          diag.push('最新 AI：' + String(latestAI.title || '').slice(0, 40));
+        }
+        if (rows[0].updated_at) diag.push('雲端更新：' + String(rows[0].updated_at).replace('T', ' ').slice(0, 16));
+      }
+    } catch (e4) {
+      diag.push('雲端資料列：讀取失敗（' + errText(e4) + '）');
+    }
+    try {
       var info = await tgApi('getWebhookInfo', {});
       if (info && info.ok && info.result) {
         diag.push('Webhook：' + (info.result.url ? '已設定' : '未設定'));

@@ -29,7 +29,7 @@ Telegram → Bot → Supabase Edge Function（telegram-task）
 | `整理競品資料 明天` | 按「AI 待辦」後放到任務 → AI 工作區的 AI 待辦 |
 | `/today` | 回覆今天的待辦與逾期任務 |
 | `/test` | 送出一顆測試按鈕，確認聊天室能顯示 inline keyboard |
-| `/diag` | 檢查 Secrets、Webhook、按鈕暫存 RPC 是否正常 |
+| `/diag` | 檢查 Secrets、Webhook、按鈕暫存 RPC，以及目前 `DASH_ID` 的雲端 AI 待辦筆數 |
 | `/id` | 顯示你的 Telegram chat id（設定授權用） |
 | `/help` | 指令說明 |
 
@@ -185,6 +185,7 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 | Bot 回「找不到雲端資料列」 | `DASH_ID` 打錯（要與儀錶板的文件金鑰相同） |
 | `RPC 404` / `function not found` | `setup.sql` 還沒執行，或要等 Supabase schema cache 更新 |
 | 儀錶板沒出現新項目 | 設定頁是否勾了「自動接收雲端變更」；或重新整理頁面 |
+| Telegram 說已新增 AI 待辦，但看板沒有 | 到「任務 → AI 工作區」按「檢查／補回雲端 AI 待辦」；再傳 `/diag` 看「雲端 AI 待辦」筆數。若 `/diag` 有、看板檢查是 0，代表 `DASH_URL`／`DASH_ID` 與看板同步設定不同；若兩邊都是 0，可能被其他分頁的自動上傳覆蓋 |
 | 一直回「已處理過」 | 同一則訊息被重送或重複按按鈕，屬正常保護 |
 | 專案暫時失效 | Supabase 免費專案閒置 7 天會暫停，回後台按 Restore |
 
