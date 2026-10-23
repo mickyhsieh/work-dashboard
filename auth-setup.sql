@@ -11,7 +11,8 @@
 --   A. 先重新部署 mcp-task / telegram-task，讓它們使用 service_role
 --      （Edge Functions 會優先讀 SUPABASE_SERVICE_ROLE_KEY；若沒有，
 --       再把 DASH_KEY secret 改成 service_role key）。
---   B. AI Worker 的 .env 也把 DASH_KEY 改成 service_role key。
+--   B. AI Worker 的 .env 也把 DASH_KEY 改成 service_role key
+--      （或設定 SUPABASE_SERVICE_ROLE_KEY，會優先使用）。
 --   C. 再執行本檔，否則 Telegram／MCP／AI Worker 會因 anon 權限被收回而 401。
 -- ============================================================
 
