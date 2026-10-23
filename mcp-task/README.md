@@ -106,58 +106,55 @@ $env:MCP_TASK_TOKEN = "<剛才產生的 token>"
 $url = "https://<PROJECT_REF>.supabase.co/functions/v1/mcp-task"
 $headers = @{
   Authorization = "Bearer $env:MCP_TASK_TOKEN"
-  "Content-Type" = "application/json"
   "MCP-Protocol-Version" = "2025-06-18"
+}
+
+# Windows PowerShell 5.1 直接傳字串時可能用非 UTF-8 編碼，中文會變成 ?。
+# 一律先轉成 UTF-8 byte[] 再送出。
+function Invoke-Mcp($id, $method, $params) {
+  $json = @{
+    jsonrpc = "2.0"
+    id = $id
+    method = $method
+    params = $params
+  } | ConvertTo-Json -Depth 10
+  $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+  Invoke-RestMethod -Uri $url -Method Post -Headers $headers -ContentType "application/json; charset=utf-8" -Body $bytes
 }
 ```
 
 `initialize`：
 
 ```powershell
-$body = @{
-  jsonrpc = "2.0"
-  id = 1
-  method = "initialize"
-  params = @{
-    protocolVersion = "2025-06-18"
-    capabilities = @{}
-    clientInfo = @{ name = "powershell-test"; version = "1.0" }
-  }
-} | ConvertTo-Json -Depth 10
-
-Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
+Invoke-Mcp 1 "initialize" @{
+  protocolVersion = "2025-06-18"
+  capabilities = @{}
+  clientInfo = @{ name = "powershell-test"; version = "1.0" }
+}
 ```
 
 `tools/list`：
 
 ```powershell
-$body = @{ jsonrpc = "2.0"; id = 2; method = "tools/list"; params = @{} } |
-  ConvertTo-Json -Depth 10
-
-Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
+Invoke-Mcp 2 "tools/list" @{}
 ```
 
 新增測試任務（故意用 `externalId` 測去重）：
 
 ```powershell
-$body = @{
-  jsonrpc = "2.0"
-  id = 3
-  method = "tools/call"
-  params = @{
-    name = "create_task"
-    arguments = @{
-      title = "測試：MCP 新增任務"
-      note = "來自部署測試，可刪除"
-      due = "2026-10-30"
-      priority = "high"
-      externalId = "test-mcp-001"
-    }
+Invoke-Mcp 3 "tools/call" @{
+  name = "create_task"
+  arguments = @{
+    title = "測試：MCP 新增任務"
+    note = "來自部署測試，可刪除"
+    due = "2026-10-30"
+    priority = "high"
+    externalId = "test-mcp-001"
   }
-} | ConvertTo-Json -Depth 10
-
-Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
+}
 ```
+
+如果之前用字串送出，中文已經變成 `?`，那筆資料無法還原；請刪除該測試任務，或改用新的 `externalId` 再測一次。
 
 再執行一次同樣的 `create_task`，應該回傳 `duplicate: true`，且看板不會多一筆。最後到工作儀錶板確認「任務 → 我的任務」出現資料，Telegram 也應收到通知。
 
@@ -254,6 +251,7 @@ opencode mcp list
 | `append_task_once` 不存在 | 還沒執行 `setup.sql`；若剛建立，等幾秒或執行 `notify pgrst, 'reload schema';` |
 | 任務有建立但 Telegram 沒通知 | `BOT_TOKEN` / `ALLOWED_CHAT_ID` 未設定，或 Chat ID 不對；看 Function log |
 | 任務重複 | Client 重試但沒有帶相同 `externalId`；請助手重試時帶固定值 |
+| 中文變成 `?` 或亂碼 | Windows PowerShell 5.1 的 `Invoke-RestMethod` 用非 UTF-8 編碼送字串；改用 UTF-8 `byte[]`（見測試段落）。OpenCode 正常會送 UTF-8。若連 Telegram 固定標籤也是 `?`，再檢查 Edge Function 原始碼貼上時是否保持 UTF-8。 |
 | `list_projects` 找不到專案 | 專案名稱必須與看板完全一致（英文不分大小寫） |
 
 ## 安全建議
