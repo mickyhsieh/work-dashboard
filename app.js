@@ -223,6 +223,15 @@ function seed(){
 /* 查找 */
 function findTask(id){ for(var i=0;i<state.tasks.length;i++) if(state.tasks[i].id===id) return state.tasks[i]; return null; }
 function isMCPTask(x){ return !!x && (x.source === 'mcp' || x.assignedBy === 'boss'); }
+function mcpSender(x){
+  var s = x && (x.sender || x.assignedBy);
+  if(!s) return '未知';
+  return s === 'boss' ? '老闆' : String(s);
+}
+function mcpBadge(x, text){
+  if(!isMCPTask(x)) return '';
+  return '<span class="src-badge" title="由 ' + esc(mcpSender(x)) + ' 交辦">' + esc(text || 'MCP') + '</span>';
+}
 function findProject(id){ for(var i=0;i<state.projects.length;i++) if(state.projects[i].id===id) return state.projects[i]; return null; }
 function findMeeting(id){ for(var i=0;i<state.meetings.length;i++) if(state.meetings[i].id===id) return state.meetings[i]; return null; }
 function findEvent(id){ for(var i=0;i<state.events.length;i++) if(state.events[i].id===id) return state.events[i]; return null; }
@@ -433,7 +442,8 @@ function taskCard(x){
   if(x.status === 'done'){ if(x.completedAt) left.push(fmtMD(x.completedAt) + ' 完成'); }
   else if(x.due){ left.push(isOverdue(x) ? '<span class="od">' + dueLabel(x.due) + '・逾期</span>' : dueLabel(x.due) + '到期'); }
   if(x.projectId) left.push(esc(projName(x.projectId)));
-  var badge = isMCPTask(x) ? '<span class="src-badge" title="由 MCP 交辦">MCP</span>' : '';
+  if(isMCPTask(x)) left.push(esc(mcpSender(x)) + ' 交辦');
+  var badge = mcpBadge(x);
   return '<div class="' + cls + '" draggable="true" data-action="open-task" data-id="' + x.id + '">' +
     '<div class="kt' + (x.status === 'done' ? ' done' : '') + '">' + esc(x.title) + '</div>' +
     '<div class="kmeta"><span class="kl">' + left.join('・') + '</span><span class="kr">' + badge + pillPRI(x.priority) + '</span></div>' +
@@ -484,10 +494,11 @@ function renderTasks(){
         if(pn) sub.push(esc(pn));
         if(x.status === 'done'){ if(x.completedAt) sub.push(fmtMD(x.completedAt) + ' 完成'); }
         else if(x.due) sub.push(isOverdue(x) ? '<span class="od">' + dueLabel(x.due) + '・逾期</span>' : dueLabel(x.due) + '到期');
+        if(isMCPTask(x)) sub.push(esc(mcpSender(x)) + ' 交辦');
         h += '<div class="trow" data-action="open-task" data-id="' + x.id + '">' +
           '<span class="check' + (x.status === 'done' ? ' done' : '') + '" data-action="toggle-task" data-id="' + x.id + '"></span>' +
           '<span class="t' + (x.status === 'done' ? ' done' : '') + '">' + esc(x.title) + '<small>' + sub.join('・') + '</small></span>' +
-          (isMCPTask(x) ? '<span class="src-badge" title="由 MCP 交辦">MCP</span>' : '') +
+          mcpBadge(x) +
           pillST(x.status) + pillPRI(x.priority) + '</div>';
       });
     } else {
@@ -1298,10 +1309,11 @@ function reportTaskRow(x, doneMode){
     else sub.push(fmtMD(x.due) + ' 到期');
   }
   if(x.projectId && projName(x.projectId)) sub.push(esc(projName(x.projectId)));
+  if(isMCPTask(x)) sub.push(esc(mcpSender(x)) + ' 交辦');
   return '<div class="trow" data-action="open-task" data-id="' + x.id + '">' +
     '<span class="rep-ico' + (doneMode ? ' ok' : '') + '">' + (doneMode ? '✓' : '') + '</span>' +
     '<span class="t">' + esc(x.title) + '<small>' + sub.join('・') + '</small></span>' +
-    (isMCPTask(x) ? '<span class="src-badge" title="由 MCP 交辦">MCP</span>' : '') +
+    mcpBadge(x) +
     pillPRI(x.priority) + '</div>';
 }
 function reportStatsHTML(){
@@ -1644,7 +1656,7 @@ function openTaskModal(id){
   t = t || { id:'', title:'', status:'todo', priority:'mid', due: today(), projectId:'', note:'' };
   var h = '<form class="modal" data-form="task" data-id="' + t.id + '">' +
     '<div class="modal-h"><span>' + (isEdit ? '編輯任務' : '新增任務') +
-      (isMCPTask(t) ? ' <span class="src-badge">MCP 交辦</span>' : '') +
+      (isMCPTask(t) ? ' ' + mcpBadge(t, 'MCP 交辦 · ' + mcpSender(t)) : '') +
       '</span><button type="button" class="ibtn" data-action="close-modal">✕</button></div>' +
     '<div class="modal-b">' +
       '<div class="field"><label>標題</label><input name="title" data-autofocus value="' + esc(t.title) + '" placeholder="要完成的事…"></div>' +

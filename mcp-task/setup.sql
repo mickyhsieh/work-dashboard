@@ -1,6 +1,8 @@
 -- MCP 任務入口：原子追加 + externalId 去重
 -- 在 Supabase Dashboard → SQL Editor 貼上執行。可重複執行。
 --
+-- Token 驗證請另外執行同資料夾的 token-registry.sql。
+--
 -- 為什麼不直接用 append_task？
 -- MCP Client 可能因網路逾時重試同一個 tools/call。
 -- 這個函式會在同一個資料庫交易內鎖住看板資料列，先檢查 externalId；

@@ -1,4 +1,6 @@
 {
+  // 每個 OpenCode／Hermes Client 使用自己的 MCP_TASK_TOKEN；
+  // token 不要寫在這個檔案，也不要 commit。
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "servers": {
