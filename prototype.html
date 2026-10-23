@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>工作儀錶板｜風格原型</title>
+<script>
+/* 在繪製前先決定主題，避免閃爍 */
+(function(){
+  try{
+    var m = localStorage.getItem('wd-theme') || 'system';
+    var d = m === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : m;
+    document.documentElement.dataset.theme = d;
+    var a = localStorage.getItem('wd-accent');
+    if (a) document.documentElement.dataset.accent = a;
+  }catch(e){}
+})();
+</script>
+<style>
+/* ============ 設計代幣（淺色） ============ */
+:root{
+  color-scheme: light;
+  --bg:#f6f7f9;
+  --surface:#ffffff;
+  --surface-2:#eef1f5;
+  --sidebar:#ffffff;
+  --border:#e3e6ec;
+  --text:#1c2333;
+  --dim:#67718a;
+  --accent:#c06a0a;
+  --accent-soft:#faeede;
+  --amber:#b97a1e;
+  --amber-soft:#fbf0db;
+  --red:#cf4040;
+  --red-soft:#fce9e9;
+  --green:#1f9d6d;
+  --green-soft:#e1f5ec;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+  --radius:12px;
+}
+/* ============ 設計代幣（深色，跟隨系統） ============ */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0f1115;
+    --surface:#171a21;
+    --surface-2:#1f242e;
+    --sidebar:#131720;
+    --border:#262c38;
+    --text:#e7eaf0;
+    --dim:#98a2b3;
+    --accent:#5b8cff;
+    --accent-soft:#1d2a4a;
+    --amber:#e0a33d;
+    --amber-soft:#33280f;
+    --red:#f06a6a;
+    --red-soft:#3a1717;
+    --green:#3ecb95;
+    --green-soft:#0f2e23;
+    --shadow:0 1px 2px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.25);
+  }
+}
+/* ============ 設計代幣（深色，手動指定） ============ */
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0f1115;
+  --surface:#171a21;
+  --surface-2:#1f242e;
+  --sidebar:#131720;
+  --border:#262c38;
+  --text:#e7eaf0;
+  --dim:#98a2b3;
+  --accent:#5b8cff;
+  --accent-soft:#1d2a4a;
+  --amber:#e0a33d;
+  --amber-soft:#33280f;
+  --red:#f06a6a;
+  --red-soft:#3a1717;
+  --green:#3ecb95;
+  --green-soft:#0f2e23;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.25);
+}
+
+/* ============ 主色變化 ============ */
+:root{--accent-strong:var(--accent)}
+/* 淺色 */
+:root[data-accent="teal"]{--accent:#0d8a7c;--accent-strong:#0d8a7c;--accent-soft:#ddf3f0}
+:root[data-accent="violet"]{--accent:#6d4fe0;--accent-strong:#6846d6;--accent-soft:#efeafd}
+:root[data-accent="orange"]{--accent:#c06a0a;--accent-strong:#c06a0a;--accent-soft:#faeede}
+:root[data-accent="graphite"]{--accent:#333d52;--accent-strong:#2b3346;--accent-soft:#e9ecf2}
+/* 深色（跟隨系統） */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--accent-strong:#3f6fe8}
+  :root:not([data-theme="light"])[data-accent="teal"]{--accent:#2ec4b6;--accent-strong:#1f9c90;--accent-soft:#11332e}
+  :root:not([data-theme="light"])[data-accent="violet"]{--accent:#a08cff;--accent-strong:#7a5df0;--accent-soft:#2a2244}
+  :root:not([data-theme="light"])[data-accent="orange"]{--accent:#f0a34d;--accent-strong:#d0821e;--accent-soft:#362611}
+  :root:not([data-theme="light"])[data-accent="graphite"]{--accent:#aab6cc;--accent-strong:#3a4356;--accent-soft:#232a38}
+}
+/* 深色（手動） */
+:root[data-theme="dark"]{--accent-strong:#3f6fe8}
+:root[data-theme="dark"][data-accent="teal"]{--accent:#2ec4b6;--accent-strong:#1f9c90;--accent-soft:#11332e}
+:root[data-theme="dark"][data-accent="violet"]{--accent:#a08cff;--accent-strong:#7a5df0;--accent-soft:#2a2244}
+:root[data-theme="dark"][data-accent="orange"]{--accent:#f0a34d;--accent-strong:#d0821e;--accent-soft:#362611}
+:root[data-theme="dark"][data-accent="graphite"]{--accent:#aab6cc;--accent-strong:#3a4356;--accent-soft:#232a38}
+
+/* 預設主色＝橙（覆蓋深色底值） */
+:root[data-theme="dark"]{--accent:#f0a34d;--accent-soft:#362611;--accent-strong:#d0821e}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--accent:#f0a34d;--accent-soft:#362611;--accent-strong:#d0821e}
+}
+/* 藍（選用） */
+:root[data-accent="blue"]{--accent:#3b6fe0;--accent-strong:#3b6fe0;--accent-soft:#e9effc}
+:root[data-theme="dark"][data-accent="blue"]{--accent:#5b8cff;--accent-strong:#3f6fe8;--accent-soft:#1d2a4a}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"])[data-accent="blue"]{--accent:#5b8cff;--accent-strong:#3f6fe8;--accent-soft:#1d2a4a}
+}
+
+/* ============ 基礎 ============ */
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  font-size:14px;
+  line-height:1.55;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+.hide{display:none !important}
+
+/* ============ 版面骨架 ============ */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  width:224px;flex:0 0 224px;
+  background:var(--sidebar);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  padding:16px 12px;
+  position:sticky;top:0;height:100vh;
+}
+.brand{display:flex;align-items:center;gap:9px;padding:4px 8px 16px;font-weight:700;font-size:15px}
+.logo{width:26px;height:26px;border-radius:8px;background:var(--accent-strong);
+  color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;flex:0 0 26px}
+.brand .badge{font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-soft);
+  padding:1px 7px;border-radius:999px}
+.nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.nav a{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border-radius:8px;
+  color:var(--dim);text-decoration:none;font-size:13.5px;
+  cursor:pointer;user-select:none;
+}
+.nav a:hover{background:var(--surface-2);color:var(--text)}
+.nav a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav svg{width:16px;height:16px;flex:0 0 16px}
+.theme-box{border-top:1px solid var(--border);padding-top:12px;margin-top:10px}
+.theme-box label{display:block;font-size:11px;color:var(--dim);margin:0 2px 7px}
+.seg{display:flex;background:var(--surface-2);border-radius:8px;padding:3px;gap:2px}
+.seg button{
+  flex:1;border:0;background:transparent;color:var(--dim);
+  font-size:11.5px;padding:5px 0;border-radius:6px;cursor:pointer;font-family:inherit;
+}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-weight:600}
+.swatches{display:flex;gap:9px;margin:2px 2px 8px}
+.sw{width:20px;height:20px;border-radius:50%;border:0;cursor:pointer;padding:0}
+.sw.on{outline:2px solid var(--text);outline-offset:2px}
+.sw[data-accent="blue"]{background:#3b6fe0}
+.sw[data-accent="teal"]{background:#0d8a7c}
+.sw[data-accent="violet"]{background:#6d4fe0}
+.sw[data-accent="orange"]{background:#c06a0a}
+.sw[data-accent="graphite"]{background:#333d52}
+.foot-note{font-size:10.5px;color:var(--dim);margin:10px 2px 0;line-height:1.5}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* ============ 頂列 ============ */
+.topbar{
+  position:sticky;top:0;z-index:10;
+  display:flex;align-items:center;gap:12px;
+  padding:12px 24px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+}
+.topbar h1{font-size:16px;margin:0;flex:0 0 auto}
+.search{
+  flex:1;max-width:430px;display:flex;align-items:center;gap:8px;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:7px 12px;color:var(--dim);font-size:13px;cursor:text;
+}
+.search svg{width:14px;height:14px;flex:0 0 14px}
+.search kbd{margin-left:auto;font-size:10.5px;border:1px solid var(--border);border-radius:5px;
+  padding:1px 5px;color:var(--dim);font-family:inherit;background:var(--surface-2)}
+.btn{border:0;border-radius:9px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.btn svg{width:13px;height:13px}
+.btn-primary{background:var(--accent-strong);color:#fff}
+.btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text)}
+.spacer{flex:1}
+
+/* ============ 內容區 ============ */
+.content{padding:24px;max-width:1200px;width:100%;margin:0 auto;flex:1}
+.view{display:none}
+.view.on{display:block}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:13.5px}
+.card-b{padding:14px 16px}
+.cnt{color:var(--dim);font-weight:400;font-size:12px}
+.dim{color:var(--dim);font-size:12px;font-weight:400}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.kpi{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;gap:10px}
+.kpi .n{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1.15}
+.kpi .n.red{color:var(--red)}
+.kpi .l{font-size:12px;color:var(--dim)}
+.kpi .l small{display:block;font-size:11px;color:var(--dim);opacity:.85}
+.donut{width:46px;height:46px;border-radius:50%;position:relative;flex:0 0 46px}
+.donut::before{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--surface)}
+.donut b{position:absolute;inset:0;display:grid;place-items:center;font-size:11px}
+
+.grid-2{display:grid;grid-template-columns:1.9fr 1fr;gap:14px;align-items:start}
+.grid-eq{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* ============ 清單列 / 標籤 ============ */
+.trow{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)}
+.trow:last-child{border-bottom:0}
+.check{width:17px;height:17px;border:1.5px solid var(--border);border-radius:50%;flex:0 0 17px;cursor:pointer}
+.check.done{background:var(--green);border-color:var(--green)}
+.trow .t{flex:1;min-width:0}
+.trow .t small{display:block;color:var(--dim);font-size:11.5px}
+.trow .t.done{color:var(--dim);text-decoration:line-through}
+
+.pill{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.p-high{background:var(--red-soft);color:var(--red)}
+.p-mid{background:var(--amber-soft);color:var(--amber)}
+.p-low{background:var(--surface-2);color:var(--dim)}
+.p-done{background:var(--green-soft);color:var(--green)}
+.p-info{background:var(--accent-soft);color:var(--accent)}
+
+.chip{padding:5px 12px;border-radius:999px;border:1px solid var(--border);color:var(--dim);
+  font-size:12.5px;background:var(--surface);cursor:pointer;font-family:inherit}
+.chip.on{background:var(--text);color:var(--bg);border-color:transparent;font-weight:600}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.toolbar .push{margin-left:auto}
+
+/* ============ 看板 ============ */
+.board{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+.col .card-b{padding:6px 12px 12px}
+.kcard{margin:8px 0;padding:12px;border:1px solid var(--border);border-radius:10px;
+  background:var(--surface);box-shadow:var(--shadow);border-left:3px solid var(--border)}
+.kcard.high{border-left-color:var(--red)}
+.kcard.mid{border-left-color:var(--amber)}
+.kcard.done{border-left-color:var(--green)}
+.kt{font-size:13px;font-weight:600;margin-bottom:8px}
+.kt.done{color:var(--dim);text-decoration:line-through;font-weight:500}
+.kmeta{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--dim)}
+
+/* ============ 日曆 ============ */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:14px 16px}
+.cal .wd{text-align:center;font-size:11px;color:var(--dim);padding:2px 0}
+.cal .day{aspect-ratio:1.15;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:12.5px;position:relative;border:1px solid transparent;cursor:pointer}
+.cal .day.mut{color:var(--dim);opacity:.4}
+.cal .day.today{border-color:var(--accent);color:var(--accent);font-weight:700}
+.cal .day:hover{background:var(--surface-2)}
+.cal .day .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);position:absolute;bottom:6px}
+
+.meet{display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.meet:last-child{border-bottom:0}
+.datechip{flex:0 0 46px;text-align:center;background:var(--accent-soft);color:var(--accent);
+  border-radius:9px;padding:6px 0;align-self:flex-start}
+.datechip b{display:block;font-size:16px;line-height:1.15}
+.datechip span{font-size:10.5px}
+
+/* ============ 進度 / 里程碑 ============ */
+.prog{height:7px;background:var(--surface-2);border-radius:999px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.prog.green i{background:var(--green)}
+.ms-row{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 12px}
+.ms{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);color:var(--dim)}
+.ms.done{background:var(--green-soft);border-color:transparent;color:var(--green)}
+.ms.now{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:600}
+.next{font-size:12px;color:var(--dim)}
+
+/* ============ 圖表 ============ */
+.bars{display:flex;gap:10px;height:110px;align-items:flex-end}
+.bars .b{flex:1;display:flex;align-items:flex-end;height:100%}
+.bars .b i{width:100%;background:var(--accent);opacity:.9;border-radius:6px 6px 3px 3px;min-height:3px}
+.bars .b i.g{background:var(--green)}
+.blabels{display:flex;gap:10px;margin-top:8px}
+.blabels em{flex:1;text-align:center;font-style:normal;font-size:10.5px;color:var(--dim)}
+
+/* ============ 佔位頁 ============ */
+.placeholder{display:flex;flex-direction:column;align-items:center;gap:6px;padding:72px 20px;color:var(--dim);text-align:center}
+.placeholder svg{width:28px;height:28px;opacity:.5;margin-bottom:4px}
+.placeholder b{color:var(--text);font-size:15px}
+.placeholder span{font-size:12.5px}
+
+/* ============ 響應式 ============ */
+@media (max-width:1100px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .grid-2,.grid-eq{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static;flex-direction:row;align-items:center;
+    gap:8px;padding:8px 12px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}
+  .brand{display:none}
+  .nav{flex-direction:row;flex:0 0 auto}
+  .nav a{white-space:nowrap;padding:6px 10px}
+  .theme-box{border-top:0;margin:0;padding:0;margin-left:auto}
+  .theme-box label,.foot-note{display:none}
+  .seg{width:132px;flex:0 0 132px}
+  .board{grid-template-columns:1fr}
+  .topbar{flex-wrap:wrap}
+  .content{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 側邊欄 ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">儀</div>
+      <span>工作儀錶板</span>
+      <span class="badge">原型</span>
+    </div>
+    <nav class="nav">
+      <a class="active" data-view="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        總覽
+      </a>
+      <a data-view="tasks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        任務
+      </a>
+      <a data-view="projects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        專案
+      </a>
+      <a data-view="meetings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        會議
+      </a>
+      <a data-view="docs">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        文件
+      </a>
+      <a data-view="stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+        統計
+      </a>
+      <a data-view="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        設定
+      </a>
+    </nav>
+    <div class="theme-box">
+      <label>外觀</label>
+      <div class="seg" id="theme-seg">
+        <button data-mode="system" class="on">系統</button>
+        <button data-mode="light">淺色</button>
+        <button data-mode="dark">深色</button>
+      </div>
+      <label style="margin-top:12px">主色</label>
+      <div class="swatches" id="accent-swatches">
+        <button class="sw" data-accent="blue" title="藍"></button>
+        <button class="sw" data-accent="teal" title="青綠"></button>
+        <button class="sw" data-accent="violet" title="紫"></button>
+        <button class="sw on" data-accent="orange" title="橙"></button>
+        <button class="sw" data-accent="graphite" title="石墨"></button>
+      </div>
+      <p class="foot-note">風格原型 v0.3・主色：橙<br>左下可即時切換主題與主色</p>
+    </div>
+  </aside>
+
+  <!-- ============ 主區 ============ -->
+  <div class="main">
+    <header class="topbar">
+      <h1 id="page-title">總覽</h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>搜尋任務、會議、文件…</span>
+        <kbd>Ctrl K</kbd>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新增
+      </button>
+    </header>
+
+    <div class="content">
+
+      <!-- ===== 總覽 ===== -->
+      <section id="view-overview" class="view on">
+        <div class="kpis">
+          <div class="card kpi">
+            <div><div class="l">本週到期<small>含今天 3 項</small></div></div>
+            <div class="n">7</div>
+          </div>
+          <div class="card kpi">
+            <div><div class="l">進行中<small>跨 3 個專案</small></div></div>
+            <div class="n">12</div>
+          </div>
+          <div class="card kpi">
+            <div><div class="l">逾期<small>需要處理</small></div></div>
+            <div class="n red">2</div>
+          </div>
+          <div class="card kpi">
+            <div><div class="l">本週完成率<small>9 / 13 項</small></div></div>
+            <div class="donut" style="background:conic-gradient(var(--green) 0 68%,var(--surface-2) 68% 100%)"><b>68%</b></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h">今日焦點 <span class="cnt">依優先級排序</span></div>
+            <div class="trow">
+              <div class="check"></div>
+              <div class="t">青廣招生簡章校稿回覆印刷廠<small>今天到期</small></div>
+              <span class="pill p-high">高</span>
+            </div>
+            <div class="trow">
+              <div class="check"></div>
+              <div class="t">整理 8/24 卓青會議逐字稿行動項<small>今天到期</small></div>
+              <span class="pill p-mid">中</span>
+            </div>
+            <div class="trow">
+              <div class="check done"></div>
+              <div class="t done">新版官網首頁 wireframe</div>
+              <span class="pill p-done">完成</span>
+            </div>
+            <div class="trow">
+              <div class="check"></div>
+              <div class="t">回覆 pmg 退信名單清理結果<small>明天到期</small></div>
+              <span class="pill p-low">低</span>
+            </div>
+            <div class="trow">
+              <div class="check"></div>
+              <div class="t">志工培訓簡報 v2 大綱<small>週四到期</small></div>
+              <span class="pill p-mid">中</span>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="card">
+              <div class="card-h">近期會議</div>
+              <div class="meet">
+                <div class="datechip"><b>21</b><span>週三</span></div>
+                <div>
+                  <div style="font-weight:600">卓青籌備會議</div>
+                  <div class="dim">14:00・5 人 <span class="pill p-info">3 行動項</span></div>
+                </div>
+              </div>
+              <div class="meet">
+                <div class="datechip"><b>23</b><span>週五</span></div>
+                <div>
+                  <div style="font-weight:600">官網改版討論</div>
+                  <div class="dim">10:00・議程待排</div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h">里程碑</div>
+              <div class="card-b">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px">
+                  <span>青廣招生計畫</span><span class="dim">65%</span>
+                </div>
+                <div class="prog"><i style="width:65%"></i></div>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin:14px 0 6px">
+                  <span>官網改版</span><span class="dim">40%</span>
+                </div>
+                <div class="prog green"><i style="width:40%"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 任務 ===== -->
+      <section id="view-tasks" class="view">
+        <div class="toolbar">
+          <div class="seg" style="width:150px">
+            <button class="on" data-tasksview="board">看板</button>
+            <button data-tasksview="list">清單</button>
+          </div>
+          <button class="chip on">全部</button>
+          <button class="chip">高優先</button>
+          <button class="chip">本週到期</button>
+          <button class="chip">逾期</button>
+          <button class="btn btn-primary push">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新增任務
+          </button>
+        </div>
+
+        <div id="task-board" class="board">
+          <div class="col">
+            <div class="card">
+              <div class="card-h">待辦 <span class="cnt">3</span></div>
+              <div class="card-b">
+                <div class="kcard mid">
+                  <div class="kt">整理 8/24 卓青會議逐字稿行動項</div>
+                  <div class="kmeta"><span>今天到期</span><span class="pill p-mid">中</span></div>
+                </div>
+                <div class="kcard">
+                  <div class="kt">回覆 pmg 退信名單清理結果</div>
+                  <div class="kmeta"><span>明天到期</span><span class="pill p-low">低</span></div>
+                </div>
+                <div class="kcard mid">
+                  <div class="kt">志工培訓簡報 v2 大綱</div>
+                  <div class="kmeta"><span>週四到期</span><span class="pill p-mid">中</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="card">
+              <div class="card-h">進行中 <span class="cnt">3</span></div>
+              <div class="card-b">
+                <div class="kcard high">
+                  <div class="kt">青廣招生簡章校稿回覆印刷廠</div>
+                  <div class="kmeta"><span>週五到期</span><span class="pill p-high">高</span></div>
+                </div>
+                <div class="kcard high">
+                  <div class="kt">新版官網首頁 wireframe</div>
+                  <div class="kmeta"><span>今天到期</span><span class="pill p-high">高</span></div>
+                </div>
+                <div class="kcard mid">
+                  <div class="kt">招生表單自動回覆信文案</div>
+                  <div class="kmeta"><span>週三到期</span><span class="pill p-mid">中</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="card">
+              <div class="card-h">完成 <span class="cnt">2</span></div>
+              <div class="card-b">
+                <div class="kcard done">
+                  <div class="kt done">卓青名單彙整</div>
+                  <div class="kmeta"><span>10/16 完成</span><span class="pill p-done">完成</span></div>
+                </div>
+                <div class="kcard done">
+                  <div class="kt done">八月會議紀錄歸檔</div>
+                  <div class="kmeta"><span>10/15 完成</span><span class="pill p-done">完成</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="task-list" class="hide">
+          <div class="card">
+            <div class="card-h">全部任務 <span class="cnt">8 項・依期限排序</span></div>
+            <div class="trow"><div class="check"></div><div class="t">新版官網首頁 wireframe<small>官網改版・今天</small></div><span class="pill p-info">進行中</span><span class="pill p-high">高</span></div>
+            <div class="trow"><div class="check"></div><div class="t">青廣招生簡章校稿回覆印刷廠<small>青廣招生計畫・週五</small></div><span class="pill p-info">進行中</span><span class="pill p-high">高</span></div>
+            <div class="trow"><div class="check"></div><div class="t">招生表單自動回覆信文案<small>青廣招生計畫・週三</small></div><span class="pill p-info">進行中</span><span class="pill p-mid">中</span></div>
+            <div class="trow"><div class="check"></div><div class="t">整理 8/24 卓青會議逐字稿行動項<small>會議跟進・今天</small></div><span class="pill p-low">待辦</span><span class="pill p-mid">中</span></div>
+            <div class="trow"><div class="check"></div><div class="t">回覆 pmg 退信名單清理結果<small>信件往來・明天</small></div><span class="pill p-low">待辦</span><span class="pill p-low">低</span></div>
+            <div class="trow"><div class="check"></div><div class="t">志工培訓簡報 v2 大綱<small>志工培訓・週四</small></div><span class="pill p-low">待辦</span><span class="pill p-mid">中</span></div>
+            <div class="trow"><div class="check done"></div><div class="t done">卓青名單彙整<small>青廣招生計畫・10/16</small></div><span class="pill p-done">完成</span><span class="pill p-mid">中</span></div>
+            <div class="trow"><div class="check done"></div><div class="t done">八月會議紀錄歸檔<small>會議跟進・10/15</small></div><span class="pill p-done">完成</span><span class="pill p-low">低</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 專案 ===== -->
+      <section id="view-projects" class="view">
+        <div class="grid-eq">
+          <div class="card">
+            <div class="card-h">青廣招生計畫 <span class="pill p-info">65%</span></div>
+            <div class="card-b">
+              <div class="prog"><i style="width:65%"></i></div>
+              <div class="ms-row">
+                <span class="ms done">✓ 簡章定稿</span>
+                <span class="ms done">✓ 報名表單</span>
+                <span class="ms now">宣傳開跑</span>
+                <span class="ms">面談</span>
+                <span class="ms">公告錄取</span>
+              </div>
+              <div class="next">下一個里程碑：宣傳開跑・10/26（剩 4 項任務）</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h">官網改版 <span class="pill p-info">40%</span></div>
+            <div class="card-b">
+              <div class="prog"><i style="width:40%"></i></div>
+              <div class="ms-row">
+                <span class="ms done">✓ Wireframe</span>
+                <span class="ms now">視覺設計</span>
+                <span class="ms">前端開發</span>
+                <span class="ms">內容搬遷</span>
+                <span class="ms">上線</span>
+              </div>
+              <div class="next">下一個里程碑：視覺設計定稿・11/02（剩 6 項任務）</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 會議 ===== -->
+      <section id="view-meetings" class="view">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-h">2026 年 10 月 <span class="cnt">• 有安排會議　◎ 今天</span></div>
+            <div class="cal" id="cal-grid"></div>
+          </div>
+          <div class="stack">
+            <div class="card">
+              <div class="card-h">即將到來</div>
+              <div class="meet">
+                <div class="datechip"><b>21</b><span>週三</span></div>
+                <div>
+                  <div style="font-weight:600">卓青籌備會議</div>
+                  <div class="dim">14:00・5 人・議程已排</div>
+                  <div style="margin-top:6px"><span class="pill p-info">3 行動項 → 一鍵轉任務</span></div>
+                </div>
+              </div>
+              <div class="meet">
+                <div class="datechip"><b>23</b><span>週五</span></div>
+                <div>
+                  <div style="font-weight:600">官網改版討論</div>
+                  <div class="dim">10:00・議程待排</div>
+                </div>
+              </div>
+              <div class="meet">
+                <div class="datechip"><b>27</b><span>週二</span></div>
+                <div>
+                  <div style="font-weight:600">招生進度追蹤</div>
+                  <div class="dim">09:30・上次行動項 2 項未完成</div>
+                  <div style="margin-top:6px"><span class="pill p-mid">有未結項目</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h">最近紀錄</div>
+              <div class="trow"><div class="t">8/24 卓青會議逐字稿<small>已生成 5 個行動項</small></div><span class="pill p-info">已轉任務</span></div>
+              <div class="trow"><div class="t">10/14 官網改版 kickoff<small>決議：先用現有品牌色</small></div><span class="pill p-low">已歸檔</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 統計 ===== -->
+      <section id="view-stats" class="view">
+        <div class="grid-eq">
+          <div class="card">
+            <div class="card-h">本週工時 <span class="cnt">34 小時・較上週 +4</span></div>
+            <div class="card-b">
+              <div class="bars">
+                <div class="b"><i style="height:60%"></i></div>
+                <div class="b"><i style="height:75%"></i></div>
+                <div class="b"><i style="height:40%"></i></div>
+                <div class="b"><i style="height:80%"></i></div>
+                <div class="b"><i style="height:65%"></i></div>
+                <div class="b"><i style="height:20%"></i></div>
+                <div class="b"><i style="height:3px;opacity:.25"></i></div>
+              </div>
+              <div class="blabels">
+                <em>一</em><em>二</em><em>三</em><em>四</em><em>五</em><em>六</em><em>日</em>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h">近四週完成率 <span class="cnt">9 完成 / 13 到期</span></div>
+            <div class="card-b">
+              <div class="bars">
+                <div class="b"><i class="g" style="height:55%"></i></div>
+                <div class="b"><i class="g" style="height:61%"></i></div>
+                <div class="b"><i class="g" style="height:58%"></i></div>
+                <div class="b"><i class="g" style="height:68%"></i></div>
+              </div>
+              <div class="blabels">
+                <em>第 1 週</em><em>第 2 週</em><em>第 3 週</em><em>本週</em>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 文件（佔位） ===== -->
+      <section id="view-docs" class="view">
+        <div class="card">
+          <div class="placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <b>文件與知識庫</b>
+            <span>文件卡片、全文搜尋、標籤分類 — 樣式確認後於 v1 建置</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== 設定（佔位） ===== -->
+      <section id="view-settings" class="view">
+        <div class="card">
+          <div class="placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            <b>設定</b>
+            <span>主題、資料匯入/匯出、整合（GitHub / 日曆）— 樣式確認後於 v1 建置</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  var $ = function(s){ return document.querySelector(s); };
+  var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+
+  /* ---------- 頁面切換 ---------- */
+  var titles = {overview:'總覽',tasks:'任務',projects:'專案',meetings:'會議',docs:'文件',stats:'統計',settings:'設定'};
+  $$('.nav a').forEach(function(a){
+    a.addEventListener('click', function(){
+      $$('.nav a').forEach(function(x){ x.classList.toggle('active', x === a); });
+      $$('.view').forEach(function(v){ v.classList.toggle('on', v.id === 'view-' + a.dataset.view); });
+      $('#page-title').textContent = titles[a.dataset.view];
+      window.scrollTo(0,0);
+    });
+  });
+
+  /* ---------- 主題切換 ---------- */
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var mode = localStorage.getItem('wd-theme') || 'system';
+  function applyTheme(){
+    var resolved = (mode === 'system') ? (mq.matches ? 'dark' : 'light') : mode;
+    document.documentElement.dataset.theme = resolved;
+    $$('#theme-seg button').forEach(function(b){ b.classList.toggle('on', b.dataset.mode === mode); });
+  }
+  $$('#theme-seg button').forEach(function(b){
+    b.addEventListener('click', function(){
+      mode = b.dataset.mode;
+      try{ localStorage.setItem('wd-theme', mode); }catch(e){}
+      applyTheme();
+    });
+  });
+  if (mq.addEventListener) mq.addEventListener('change', function(){ if (mode === 'system') applyTheme(); });
+  applyTheme();
+
+  /* ---------- 主色切換 ---------- */
+  var accent = localStorage.getItem('wd-accent') || 'orange';
+  function applyAccent(){
+    document.documentElement.dataset.accent = accent;
+    $$('#accent-swatches .sw').forEach(function(b){ b.classList.toggle('on', b.dataset.accent === accent); });
+  }
+  $$('#accent-swatches .sw').forEach(function(b){
+    b.addEventListener('click', function(){
+      accent = b.dataset.accent;
+      try{ localStorage.setItem('wd-accent', accent); }catch(e){}
+      applyAccent();
+    });
+  });
+  applyAccent();
+
+  /* ---------- 任務：看板 / 清單切換 ---------- */
+  $$('[data-tasksview]').forEach(function(b){
+    b.addEventListener('click', function(){
+      $$('[data-tasksview]').forEach(function(x){ x.classList.toggle('on', x === b); });
+      $('#task-board').classList.toggle('hide', b.dataset.tasksview !== 'board');
+      $('#task-list').classList.toggle('hide', b.dataset.tasksview !== 'list');
+    });
+  });
+
+  /* ---------- 產生 2026 年 10 月日曆 ---------- */
+  (function(){
+    var grid = $('#cal-grid');
+    if (!grid) return;
+    ['日','一','二','三','四','五','六'].forEach(function(w){
+      var d = document.createElement('div');
+      d.className = 'wd'; d.textContent = w;
+      grid.appendChild(d);
+    });
+    var firstDay = new Date(2026, 9, 1).getDay(); /* 4 = 週四 */
+    var prevLast = 30; /* 9 月共 30 天 */
+    var i, d;
+    for (i = 0; i < firstDay; i++){
+      d = document.createElement('div');
+      d.className = 'day mut';
+      d.textContent = prevLast - firstDay + 1 + i;
+      grid.appendChild(d);
+    }
+    for (i = 1; i <= 31; i++){
+      d = document.createElement('div');
+      d.className = 'day';
+      if (i === 19) d.classList.add('today');
+      d.textContent = i;
+      if (i === 21 || i === 23 || i === 27){
+        var dot = document.createElement('span');
+        dot.className = 'dot';
+        d.appendChild(dot);
+      }
+      grid.appendChild(d);
+    }
+  })();
+</script>
+</body>
+</html>

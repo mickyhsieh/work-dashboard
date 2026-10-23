@@ -16,7 +16,7 @@
 | 摸魚區 | 常用網站收藏：卡片式、favicon、點擊開新分頁、新增/編輯/刪除 |
 | 設定 | JSON 匯出／匯入（也可直接把 .json 拖進頁面）、**Supabase 雲端同步**、示範資料、清除資料 |
 
-其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議／AI 待辦，支援多日行程，見 `telegram-bot/README.md`）。AI 工作區另提供 `window.wdAI` 瀏覽器 API，方便未來的 AI Agent 讀取與更新。
+其他：Ctrl+K 全域搜尋、深淺色跟隨系統、五種主色即時切換、Telegram Bot（訊息 → 按鈕選任務／私人行程／會議／AI 待辦，支援多日行程，見 `telegram-bot/README.md`）、MCP 任務入口（老闆的 AI 助手可直接新增一般任務並發 Telegram，見 `mcp-task/README.md`）。AI 工作區另提供 `window.wdAI` 瀏覽器 API，方便未來的 AI Agent 讀取與更新。
 
 > 工作報表口徑：完成數依「完成日」，未完成依「到期日」；兩者分開呈現。行動項與里程碑自 v1.2 起記錄完成日（`doneAt`），較早完成的舊資料不會列入期間統計。私人行程只顯示於行事曆，不列入工作報表與工時統計。
 
@@ -27,6 +27,7 @@ index.html    入口（部署時的主要檔案）
 styles.css    樣式
 app.js        核心邏輯（資料、儲存、互動）
 telegram-bot/ Telegram → 任務／私人行程／會議（Supabase Edge Function，選用）
+mcp-task/     Remote MCP → 老闆交辦的一般任務（Supabase Edge Function，選用）
 prototype.html  早期風格原型（可刪除）
 README.md     本說明
 ```
@@ -82,6 +83,10 @@ create policy "anon all" on dashboards
 ### 透過 Telegram 新增任務（選用）
 
 設定一支 Telegram Bot，就能直接傳「買牛奶 明天」把任務寫進雲端；按「AI 待辦」則會把需求放進「任務 → AI 工作區」。詳見 [`telegram-bot/README.md`](telegram-bot/README.md)。
+
+### 透過 MCP 新增一般任務（選用）
+
+如果老闆使用 OpenCode 或支援 Remote MCP 的 AI 助手，可以讓助手直接呼叫 `create_task`，把交辦事項放進「任務 → 我的任務」，建立後發 Telegram 通知。MCP Server 只開放新增一般任務、查專案、查老闆交辦任務，不會寫入 AI 工作區。部署與 OpenCode 設定見 [`mcp-task/README.md`](mcp-task/README.md)。
 
 ### AI 工作區與 Agent
 
@@ -170,3 +175,4 @@ https://<你的帳號>.github.io/work-dashboard/
 - **v2**：Google Calendar／Outlook 日曆整合（OAuth）、信件待辦萃取
 - 雲端同步：✅ 已完成（Supabase；可自訂 API 替換）
 - Telegram 收集：✅ 任務／私人行程／會議（按鈕確認；Edge Function）
+- MCP 任務入口：✅ 老闆 AI 助手 → 一般任務（Remote MCP；Edge Function）
