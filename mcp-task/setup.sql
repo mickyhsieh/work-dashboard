@@ -2,6 +2,7 @@
 -- 在 Supabase Dashboard → SQL Editor 貼上執行。可重複執行。
 --
 -- Token 驗證請另外執行同資料夾的 token-registry.sql。
+-- 看板登入與 RLS 請執行專案根目錄的 auth-setup.sql。
 --
 -- 為什麼不直接用 append_task？
 -- MCP Client 可能因網路逾時重試同一個 tools/call。
@@ -86,4 +87,6 @@ begin
 end;
 $$;
 
-grant execute on function append_task_once(text, jsonb, text) to anon, authenticated;
+-- 看板已改為登入制；MCP Edge Function 使用 service_role 呼叫。
+revoke all on function append_task_once(text, jsonb, text) from public, anon, authenticated;
+grant execute on function append_task_once(text, jsonb, text) to service_role;

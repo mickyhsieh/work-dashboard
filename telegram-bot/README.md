@@ -49,11 +49,13 @@ Telegram → Bot → Supabase Edge Function（telegram-task）
 
 ### 0. 事前準備
 
-從儀錶板「設定 → 雲端同步」或 Supabase 後台取得：
+從 Supabase 後台與儀錶板取得：
 
-- **DASH_URL**：`https://xxxx.supabase.co`（不要加 `/rest/v1`）
-- **DASH_KEY**：anon / publishable key（設定頁的「anon / publishable key」）
-- **DASH_ID**：文件金鑰（`dashboards.id`，也等於你的資料密碼）
+- **DASH_URL**：`https://xxxx.supabase.co`（不要加 `/rest/v1`；也可以不設，Edge Function 會用 `SUPABASE_URL`）
+- **DASH_KEY**：**service_role / secret key**（Supabase → API Keys；伺服器端專用。也可以不設，Edge Function 會優先使用平台注入的 `SUPABASE_SERVICE_ROLE_KEY`）
+- **DASH_ID**：文件金鑰（`dashboards.id`，在登入頁的連線設定或設定頁可看到）
+
+> 看板已改為登入制，`dashboards` 只允許 authenticated 會員；Edge Function 必須用 service_role 才能寫入。`service_role` 不可放進瀏覽器或 Git。
 
 ### 1. 建立 Telegram Bot
 
@@ -75,6 +77,10 @@ help - 說明
 Supabase Dashboard → **SQL Editor** → 貼上 [`setup.sql`](./setup.sql) → **Run**。
 
 成功後 Database → Functions 會看到 `append_task`、`save_telegram_pending`、`discard_telegram_pending`、`commit_telegram_pending`。
+
+若看板已改用登入制，還要執行專案根目錄的 [`auth-setup.sql`](../auth-setup.sql)；它會收回 anon 對這些 RPC 的執行權，改由 service_role 使用。
+
+> 如果已經有舊版 `telegram-task` 在運作，請先完成步驟 3 的重新部署（讓它使用 service_role）再執行 `auth-setup.sql`；否則 anon 權限被收回後，Bot 會無法寫入。
 
 > 已經安裝過舊版的人：**直接整份重跑一次**，會補上按鈕流程需要的資料表與函式，不會影響既有任務。
 
@@ -105,14 +111,14 @@ Dashboard → **Edge Functions → Secrets**（<https://supabase.com/dashboard/p
 |---|---|
 | `BOT_TOKEN` | BotFather 給的 token |
 | `WEBHOOK_SECRET` | 自己產生的隨機字串（建議 32 字元以上英數） |
-| `DASH_URL` | `https://xxxx.supabase.co` |
-| `DASH_KEY` | anon / publishable key |
+| `DASH_URL` | 選用；`https://xxxx.supabase.co`（不設則用 `SUPABASE_URL`） |
+| `DASH_KEY` | 選用；**service_role / secret key**（不設則用平台注入的 `SUPABASE_SERVICE_ROLE_KEY`） |
 | `DASH_ID` | 文件金鑰 |
 | `ALLOWED_CHAT_ID` | 先留空或填 `0`，第 7 步再填 |
 
 - Secret 名稱**不能**以 `SUPABASE_` 開頭（平台保留）。
 - 新增 secret 後**不需要重新部署**，下一次呼叫就會生效。
-- `DASH_KEY` 用 anon / publishable 即可，不需要 service role。
+- `DASH_KEY` 必須是 service_role；anon / publishable key 在執行 `auth-setup.sql` 後會被 RLS 擋下。
 
 ### 6. 註冊 Webhook
 
@@ -173,7 +179,7 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 | 症狀 | 可能原因／解法 |
 |---|---|
 | Telegram 完全沒回應 | 檢查 `getWebhookInfo`、Edge Functions → Logs；JWT 驗證是否已關閉 |
-| `401 Unauthorized` | `secret_token` 與 `WEBHOOK_SECRET` 不一致 |
+| `401 Unauthorized` | `secret_token` 與 `WEBHOOK_SECRET` 不一致；或 `DASH_KEY` 還是 anon，執行 `auth-setup.sql` 後請改用 service_role |
 | Bot 回「尚未設定授權」 | `ALLOWED_CHAT_ID` 尚未填或填錯 |
 | Bot 回「無法建立按鈕」 | `setup.sql` 還沒更新／重跑，或 Edge Function 還沒重新 Deploy |
 | 完全看不到按鈕 | 先傳 `/test`。沒有測試按鈕＝`telegram-task` 還是舊版，重新貼上最新 `index.ts` 並 Deploy |
@@ -191,10 +197,10 @@ https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 
 ## 安全建議
 
-- `BOT_TOKEN`、`WEBHOOK_SECRET`、`DASH_ID` 只放在 Supabase Secrets，**不要**寫進程式碼或 commit。
-- `DASH_ID` 等同資料密碼；外流的人可以用 anon key 讀寫你的資料。
+- `BOT_TOKEN`、`WEBHOOK_SECRET`、`DASH_ID`、`DASH_KEY` 只放在 Supabase Secrets，**不要**寫進程式碼或 commit。
+- 看板已改為登入制；Edge Function 使用 service_role 寫入，service_role 不可外流。
 - Bot 只回應 `ALLOWED_CHAT_ID` 指定的帳號。
-- `telegram_pending` 已開啟 RLS 且不開放 anon 直接存取，只能透過受保護的 RPC 操作。
+- `telegram_pending` 已開啟 RLS 且不開放 anon 直接存取；`auth-setup.sql` 會把相關 RPC 改成 service_role 專用。
 - 若要撤銷 token：BotFather → `/revoke` → 更新 `BOT_TOKEN` secret → 重新 `setWebhook`。
 
 ## 升級舊版

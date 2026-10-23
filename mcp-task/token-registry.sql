@@ -8,7 +8,8 @@
 --   * 在 Supabase Dashboard → Table Editor → mcp_clients 管理：
 --       新增列＝發 token；active=false＝停用；刪除列＝撤銷。
 --   * 資料表開啟 RLS 且不建立 policy，anon/authenticated 不能直接讀取。
---   * 只有 security definer 的 resolve_mcp_client() 可以查詢並更新 last_used_at。
+--   * 只有 security definer 的 resolve_mcp_client() 可以查詢並更新 last_used_at；
+--     此函式只開放 service_role，瀏覽器與 anon 不能呼叫。
 
 create extension if not exists pgcrypto;
 
@@ -29,6 +30,7 @@ alter table public.mcp_clients enable row level security;
 
 -- 不建立任何 policy；一般 anon/authenticated 不能直接存取。
 revoke all on table public.mcp_clients from anon, authenticated;
+grant all on table public.mcp_clients to service_role;
 
 create or replace function public.resolve_mcp_client(p_token_hash text)
 returns table (id uuid, name text)
@@ -63,8 +65,8 @@ begin
 end;
 $$;
 
-revoke all on function public.resolve_mcp_client(text) from public;
-grant execute on function public.resolve_mcp_client(text) to anon, authenticated, service_role;
+revoke all on function public.resolve_mcp_client(text) from public, anon, authenticated;
+grant execute on function public.resolve_mcp_client(text) to service_role;
 
 comment on table public.mcp_clients is
   'MCP Bearer token registry；只存 SHA-256 hash。由 Supabase Dashboard 管理。';

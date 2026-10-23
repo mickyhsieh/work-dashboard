@@ -1,5 +1,5 @@
 /* ============================================================
-   工作儀錶板 v1.6 — 樣式
+   工作儀錶板 v1.7 — 樣式
    主色：橙（淺色 #c06a0a／深色 #f0a34d），可切換 藍/青綠/紫/石墨
    主題：跟隨系統 + 手動覆蓋
    ============================================================ */
@@ -621,4 +621,65 @@ textarea{resize:vertical;line-height:1.5}
   .report-range{flex-basis:104px}
   .report-nav .rl b{font-size:12px}
   .report-nav .rl small{font-size:10px}
+}
+
+/* ============ 登入閘門 ============ */
+body.auth-locked .app{display:none !important}
+.auth-gate{
+  min-height:100vh;min-height:100dvh;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+  background:
+    radial-gradient(900px 420px at 12% -8%, var(--accent-soft), transparent 62%),
+    radial-gradient(700px 360px at 105% 105%, var(--surface-2), transparent 60%),
+    var(--bg);
+}
+.auth-gate[hidden]{display:none !important}
+.auth-card{
+  width:min(430px,100%);
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;box-shadow:0 18px 60px rgba(16,24,40,.14);
+  padding:28px;
+}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.auth-brand .logo{width:42px;height:42px;flex:0 0 42px;border-radius:13px;font-size:19px}
+.auth-brand h1{margin:0;font-size:20px;line-height:1.25;letter-spacing:-.02em}
+.auth-sub{margin:3px 0 0;color:var(--dim);font-size:12.5px}
+.auth-form .field{margin-bottom:14px}
+.auth-submit{width:100%;margin-top:2px;padding:10px 14px}
+.auth-error{
+  margin:0 0 12px;padding:9px 11px;border-radius:9px;
+  background:var(--red-soft);color:var(--red);font-size:12.5px;
+}
+.auth-error[hidden]{display:none}
+.auth-config{
+  border:1px solid var(--border);border-radius:11px;
+  padding:0 12px;margin-top:16px;background:var(--surface-2);
+}
+.auth-config summary{
+  cursor:pointer;padding:11px 0;color:var(--dim);
+  font-size:12px;font-weight:600;list-style:none;
+}
+.auth-config summary::-webkit-details-marker{display:none}
+.auth-config summary::after{content:'＋';float:right;font-weight:400}
+.auth-config[open] summary::after{content:'－'}
+.auth-config .body{padding:2px 0 4px}
+.auth-config .field{margin-bottom:12px}
+.auth-note{margin:12px 0 0;color:var(--dim);font-size:11.5px;line-height:1.6}
+.auth-note b{color:var(--text)}
+.auth-email{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auth-logout{white-space:nowrap}
+.sync-account{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 12px;margin-bottom:14px;
+  border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
+}
+.sync-account .who{min-width:0;display:flex;flex-direction:column;gap:2px}
+.sync-account .who b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+
+@media (max-width:760px){
+  .auth-gate{padding:16px}
+  .auth-card{padding:22px 20px;border-radius:16px}
+  .auth-email{display:none}
+  .auth-logout{padding:7px 10px;font-size:12px}
 }

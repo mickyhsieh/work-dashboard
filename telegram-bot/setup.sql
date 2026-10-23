@@ -1,5 +1,6 @@
 -- Telegram 收集：按鈕待確認 + 原子追加（任務／私人行程／會議／AI 待辦）
 -- 在 Supabase Dashboard → SQL Editor 貼上執行。舊版可整份重跑，不會影響既有資料。
+-- 看板登入與 RLS 請執行專案根目錄的 auth-setup.sql；寫入 RPC 只允許 service_role。
 --
 -- 為什麼需要它？
 -- 直接「讀取整份資料 → 修改 → 寫回」在同時有網頁與 Telegram 寫入時，
@@ -43,7 +44,9 @@ begin
 end;
 $$;
 
-grant execute on function append_task(text, jsonb) to anon, authenticated;
+-- 看板已改為登入制；寫入函式只允許伺服器端的 service_role。
+revoke all on function append_task(text, jsonb) from public, anon, authenticated;
+grant execute on function append_task(text, jsonb) to service_role;
 
 -- ============================================================
 -- 按鈕流程：待確認資料表（只有 RPC 能存取）
@@ -276,6 +279,9 @@ begin
 end;
 $$;
 
-grant execute on function save_telegram_pending(text, text, bigint, jsonb) to anon, authenticated;
-grant execute on function discard_telegram_pending(text, text) to anon, authenticated;
-grant execute on function commit_telegram_pending(text, text, text, text) to anon, authenticated;
+revoke all on function save_telegram_pending(text, text, bigint, jsonb) from public, anon, authenticated;
+revoke all on function discard_telegram_pending(text, text) from public, anon, authenticated;
+revoke all on function commit_telegram_pending(text, text, text, text) from public, anon, authenticated;
+grant execute on function save_telegram_pending(text, text, bigint, jsonb) to service_role;
+grant execute on function discard_telegram_pending(text, text) to service_role;
+grant execute on function commit_telegram_pending(text, text, text, text) to service_role;

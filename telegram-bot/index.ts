@@ -4,7 +4,9 @@
 //
 // 部署：Supabase Dashboard → Edge Functions → Deploy a new function → Via Editor
 //      名稱請用 telegram-task，貼上本檔內容後按 Deploy
-// Secrets：BOT_TOKEN / WEBHOOK_SECRET / DASH_URL / DASH_KEY / DASH_ID / ALLOWED_CHAT_ID
+// Secrets：BOT_TOKEN / WEBHOOK_SECRET / DASH_ID / ALLOWED_CHAT_ID
+//          DASH_URL / DASH_KEY 選用；通常自動使用 SUPABASE_URL /
+//          SUPABASE_SERVICE_ROLE_KEY（伺服器端，繞過瀏覽器登入 RLS）
 // 詳細步驟與升級方式見同資料夾 README.md
 
 // ===== PARSER START =====
@@ -241,11 +243,13 @@ function parseTaskInput(input) {
 
 var BOT_TOKEN = (Deno.env.get('BOT_TOKEN') || '').trim();
 var WEBHOOK_SECRET = (Deno.env.get('WEBHOOK_SECRET') || '').trim();
-var DASH_URL = (Deno.env.get('DASH_URL') || '').trim()
+var DASH_URL = (Deno.env.get('DASH_URL') || Deno.env.get('SUPABASE_URL') || '').trim()
   .replace(/\/+$/, '')
   .replace(/\/rest\/v1$/i, '')
   .replace(/\/+$/, '');
-var DASH_KEY = (Deno.env.get('DASH_KEY') || '').trim();
+// Edge Function 是伺服器端；優先用平台注入的 service_role 以繞過瀏覽器
+// 登入後的 RLS。DASH_KEY 只作為舊部署的 fallback，且必須是 service_role。
+var DASH_KEY = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('DASH_KEY') || '').trim();
 var DASH_ID = (Deno.env.get('DASH_ID') || '').trim();
 var ALLOWED = (Deno.env.get('ALLOWED_CHAT_ID') || '').trim();
 
@@ -314,7 +318,11 @@ function tgAnswer(callbackId, text) {
 }
 function sbHeaders() {
   var h = { 'apikey': DASH_KEY, 'Content-Type': 'application/json' };
-  if (DASH_KEY.indexOf('eyJ') === 0) h['Authorization'] = 'Bearer ' + DASH_KEY;
+  // service_role 舊版是 JWT（eyJ…），新版是 sb_secret_…；兩者都要放進
+  // Authorization，PostgREST 才會以 service_role 執行並繞過 RLS。
+  if (DASH_KEY.indexOf('eyJ') === 0 || DASH_KEY.indexOf('sb_secret_') === 0) {
+    h['Authorization'] = 'Bearer ' + DASH_KEY;
+  }
   return h;
 }
 function sbGet(query) {

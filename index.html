@@ -12,7 +12,7 @@
 <meta name="description" content="個人工作儀錶板：任務、AI 工作區、專案、會議與私人行程、文件、工時統計與工作報表" />
 <title>工作儀錶板</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23c06a0a'/%3E%3Ctext x='32' y='43' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E5%84%80%3C/text%3E%3C/svg%3E" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="styles.css?v=1.7" />
 <script>
 /* 在繪製前決定主題與主色，避免閃爍 */
 (function(){
@@ -26,7 +26,50 @@
 })();
 </script>
 </head>
-<body>
+<body class="auth-locked">
+<div class="auth-gate" id="auth-gate">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="logo">儀</div>
+      <div>
+        <h1>工作儀錶板</h1>
+        <p class="auth-sub">請先登入以存取你的資料</p>
+      </div>
+    </div>
+    <form id="auth-form" class="auth-form">
+      <div class="field">
+        <label for="auth-email">Email</label>
+        <input id="auth-email" type="email" autocomplete="username" inputmode="email" required>
+      </div>
+      <div class="field">
+        <label for="auth-password">密碼</label>
+        <input id="auth-password" type="password" autocomplete="current-password" required>
+      </div>
+      <p class="auth-error" id="auth-error" hidden></p>
+      <button class="btn btn-primary auth-submit" id="auth-submit" type="submit">登入</button>
+    </form>
+    <details class="auth-config" id="auth-config">
+      <summary>Supabase 連線設定（第一次使用時填寫）</summary>
+      <div class="body">
+        <div class="field">
+          <label for="auth-url">Project URL</label>
+          <input id="auth-url" type="url" placeholder="https://xxxx.supabase.co" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="auth-key">anon / publishable key</label>
+          <input id="auth-key" type="text" placeholder="sb_publishable_…" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="auth-doc">文件金鑰（docId，選填）</label>
+          <input id="auth-doc" type="text" placeholder="多台裝置要填相同值" autocomplete="off" spellcheck="false">
+        </div>
+        <p class="auth-note">只使用 anon / publishable key；<b>不要</b>貼 service_role / secret key。帳號由管理者在 Supabase Auth 建立。</p>
+      </div>
+    </details>
+    <p class="auth-note">登入狀態會保存在此瀏覽器；若使用共用電腦，請在使用完畢後登出。</p>
+    <noscript><p class="auth-note">此頁需要 JavaScript 才能登入。</p></noscript>
+  </div>
+</div>
 <div class="app">
 
   <!-- ============ 側邊欄 ============ -->
@@ -84,7 +127,7 @@
         <button type="button" class="sw" data-accent="violet" title="紫"></button>
         <button type="button" class="sw" data-accent="graphite" title="石墨"></button>
       </div>
-      <p class="foot-note">v1.6・本機儲存＋可選雲端同步<br>Ctrl+K 全域搜尋</p>
+      <p class="foot-note">v1.7・登入保護＋雲端同步<br>Ctrl+K 全域搜尋</p>
     </div>
   </aside>
 
@@ -99,6 +142,8 @@
       </div>
       <div class="spacer"></div>
       <span class="dim" id="today-label"></span>
+      <span class="dim auth-email" id="auth-user-email"></span>
+      <button class="btn btn-ghost auth-logout" type="button" data-auth-logout>登出</button>
       <button class="btn btn-primary" data-action="open-task">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         新增任務
@@ -120,6 +165,6 @@
 
 <div id="modal-root"></div>
 <div id="toasts"></div>
-<script src="app.js"></script>
+<script src="auth.js?v=1.7"></script>
 </body>
 </html>

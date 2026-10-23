@@ -5,23 +5,29 @@
 //      名稱：mcp-task
 //      JWT verification：關閉（改用 Bearer token 驗證）
 // Secrets：
-//   DASH_URL / DASH_KEY / DASH_ID   既有看板同步設定
+//   DASH_ID                         看板 ID
+//   DASH_URL / DASH_KEY             選用；通常自動使用 SUPABASE_URL /
+//                                   SUPABASE_SERVICE_ROLE_KEY
 //   BOT_TOKEN / ALLOWED_CHAT_ID     既有 Telegram Bot 設定（選用，沒有就不通知）
 //   MCP_ASSIGNED_BY          任務擁有者標記，預設 boss
 //   MCP_TOKEN                舊版單一 token（選用；遷移到 token registry 後可刪除）
 //   MCP_ALLOWED_ORIGIN       選用；若有瀏覽器 Origin，限制來源
 //
-// 先執行同資料夾的 setup.sql 與 token-registry.sql。
+// 先執行同資料夾的 setup.sql、token-registry.sql，以及專案根目錄的
+// auth-setup.sql。MCP 寫入使用 service_role，繞過瀏覽器登入的 RLS；
+// 不可把 service_role key 放到瀏覽器。
 // 每個 MCP Client 使用 mcp_clients 資料表中的一組 token，Server 會用
 // SHA-256 hash 查出名稱，寫入任務的 sender 欄位。
 
 const LEGACY_MCP_TOKEN = (Deno.env.get('MCP_TOKEN') || '').trim();
-const DASH_URL = (Deno.env.get('DASH_URL') || '')
+const DASH_URL = (Deno.env.get('DASH_URL') || Deno.env.get('SUPABASE_URL') || '')
   .trim()
   .replace(/\/+$/, '')
   .replace(/\/rest\/v1$/i, '')
   .replace(/\/+$/, '');
-const DASH_KEY = (Deno.env.get('DASH_KEY') || '').trim();
+// 優先用平台注入的 service_role；DASH_KEY 是舊部署的相容 fallback。
+// 執行 auth-setup.sql 後，DASH_KEY 必須是 service_role，不能是 anon。
+const DASH_KEY = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('DASH_KEY') || '').trim();
 const DASH_ID = (Deno.env.get('DASH_ID') || '').trim();
 const BOT_TOKEN = (Deno.env.get('BOT_TOKEN') || Deno.env.get('TELEGRAM_BOT_TOKEN') || '').trim();
 const CHAT_ID = (Deno.env.get('ALLOWED_CHAT_ID') || Deno.env.get('TELEGRAM_CHAT_ID') || '').trim();
@@ -30,7 +36,7 @@ const ALLOWED_ORIGIN = (Deno.env.get('MCP_ALLOWED_ORIGIN') || '').trim();
 
 const SERVER_NAME = 'work-dashboard-task';
 const SERVER_TITLE = 'Mickey 工作儀錶板任務';
-const SERVER_VERSION = '1.1.0';
+const SERVER_VERSION = '1.2.0';
 const SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const PRIORITY_LABEL = { high: '高', mid: '中', low: '低' };
 const STATUS_LABEL = { todo: '待辦', doing: '進行中', done: '完成' };
@@ -162,13 +168,17 @@ function requireDashboardConfig() {
   }
 }
 
-function sbHeaders() {
-  return {
+function sbHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
     apikey: DASH_KEY,
-    Authorization: `Bearer ${DASH_KEY}`,
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
+  // service_role 舊版是 JWT（eyJ…），新版是 sb_secret_…。
+  if (DASH_KEY.startsWith('eyJ') || DASH_KEY.startsWith('sb_secret_')) {
+    headers.Authorization = `Bearer ${DASH_KEY}`;
+  }
+  return headers;
 }
 
 async function sbGet() {

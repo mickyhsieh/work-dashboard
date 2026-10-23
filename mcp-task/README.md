@@ -67,6 +67,9 @@ Supabase Dashboard → **SQL Editor** → 新查詢。
 
 1. `setup.sql`
 2. `token-registry.sql`
+3. 專案根目錄的 `auth-setup.sql`（登入 RLS；會把寫入 RPC 改成 service_role 專用）
+
+> 如果已經有舊版 `mcp-task` 在運作，請先完成步驟 2 的重新部署（讓它使用 service_role）再執行 `auth-setup.sql`；否則 anon 權限被收回後，MCP 會出現 401。
 
 成功後可確認：
 
@@ -110,9 +113,9 @@ Supabase Dashboard → **Edge Functions** → **Secrets**（或 Project Settings
 
 | Secret | 說明 |
 |---|---|
-| `DASH_URL` | `https://<PROJECT_REF>.supabase.co`（不要加 `/rest/v1`） |
-| `DASH_KEY` | 既有的 anon / publishable key |
 | `DASH_ID` | 看板 ID |
+| `DASH_URL` | 選用；預設自動使用 `SUPABASE_URL` |
+| `DASH_KEY` | 選用；預設自動使用 `SUPABASE_SERVICE_ROLE_KEY`。若平台沒有注入，才需要手動設為 **service_role** key |
 | `BOT_TOKEN` | Telegram Bot Token（選用） |
 | `ALLOWED_CHAT_ID` | Mickey 的 Telegram Chat ID（選用） |
 
@@ -124,7 +127,7 @@ Supabase Dashboard → **Edge Functions** → **Secrets**（或 Project Settings
 | `MCP_TOKEN` | **舊版單一 token**。遷移到 `mcp_clients` 後建議刪除 |
 | `MCP_ALLOWED_ORIGIN` | 選用；限制瀏覽器 Origin，Server-to-Server 可不設 |
 
-`DASH_KEY` 使用 anon / publishable key 即可；`resolve_mcp_client()` 是 `security definer`，一般使用者不能直接讀 `mcp_clients`。
+> 看板已改為登入制，`dashboards` 只允許 `authenticated` 會員；Edge Function 必須用 **service_role** 才能讀寫。`DASH_KEY` 若是 anon / publishable key，執行 `auth-setup.sql` 後會 401。`service_role` 只放在 Supabase Secrets／伺服器端，不可放進瀏覽器或 Git。
 
 ### 4. 建立第一個 MCP Client token
 
@@ -273,9 +276,9 @@ Secrets 適合放「Server 的全域設定」，不適合放多個使用者 toke
 
 ### 可以放在工作儀錶板裡管理嗎？
 
-目前不建議。工作儀錶板的資料層仍是 anon 可讀寫，沒有登入與管理員權限；把 token 管理介面放進去會讓有看板存取權的人也能發 token。
+工作儀錶板現在已有登入，但 `mcp_clients` 仍是伺服器端資料，沒有開放給瀏覽器；目前也還沒有管理員專用的 token 管理頁。現階段請用 Supabase Dashboard 的 Table Editor 管理，最安全也最省事。
 
-如果你要的是「在自己的工作儀錶板管理」，下一步需要先加登入／管理員權限，再做 admin 頁面。現階段用 Supabase Dashboard 的 Table Editor 最安全也最省事。
+之後若要做 admin 頁，應只允許 `dashboard_members.role = 'owner'` 的帳號，並透過受保護的 RPC 操作 `mcp_clients`，不要直接把資料表權限開給瀏覽器。
 
 ## 老闆的 OpenCode V2 設定
 
@@ -367,7 +370,8 @@ opencode mcp list
 
 | 症狀 | 原因／處理 |
 |---|---|
-| `401 Unauthorized` | token 不正確、`active=false`、`token_hash` 與 token 不一致，或 Header 沒帶 `Bearer ` |
+| `401 Unauthorized` | token 不正確、`active=false`、`token_hash` 與 token 不一致，或 Header 沒帶 `Bearer `；若所有 token 都 401，檢查 Edge Function 是否已改用 service_role |
+| `auth-setup.sql` 執行後 MCP 全部失敗 | Edge Function 的 `DASH_KEY` 還是 anon，或沒有 `SUPABASE_SERVICE_ROLE_KEY`；重新部署 `index.ts` 並把 `DASH_KEY` 改成 service_role |
 | `503` 且訊息提到 token registry | 尚未執行 `token-registry.sql`，或 `DASH_URL` / `DASH_KEY` 沒設定 |
 | `resolve_mcp_client` 不存在 | 執行 `token-registry.sql`；若剛建立，等幾秒或執行 `notify pgrst, 'reload schema';` |
 | Supabase 回 401，但 Function log 沒進來 | Edge Function 的 **Verify JWT** 還開著，關掉後重新部署 |
@@ -387,4 +391,5 @@ opencode mcp list
 - 定期輪替：建立新列、更新 Client、停用舊列。
 - 遷移完成後刪除 Supabase Secret `MCP_TOKEN`，避免舊 token 繼續以「老闆」身份寫入。
 - `MCP_ALLOWED_ORIGIN` 只是額外的瀏覽器限制，不是主要驗證；主要驗證仍是 Bearer token。
-- 目前看板 RLS 允許 anon 讀寫整個看板；若之後要收緊，應改成登入制並重新設計 RLS，而不是只依賴 MCP token。
+- 看板已改為 Supabase Auth 登入制；`dashboards` 不再對 anon 開放。MCP Edge Function 使用 service_role 寫入，Token 驗證仍由 `mcp_clients` 負責。
+- 執行 `auth-setup.sql` 後，`append_task_once()` 與 `resolve_mcp_client()` 都只允許 service_role；如果 Edge Function 還用 anon `DASH_KEY`，會出現 401，請重新部署並改用 service_role。

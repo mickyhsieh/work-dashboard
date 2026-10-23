@@ -1,11 +1,12 @@
 # 工作儀錶板（Work Dashboard）
 
-個人工作儀錶板：任務、專案、會議與私人行程、文件、工時統計與工作報表，外加 AI 工作區與收納常用網站的摸魚區；單一頁面、純前端、無依賴。
+個人工作儀錶板：任務、專案、會議與私人行程、文件、工時統計與工作報表，外加 AI 工作區與收納常用網站的摸魚區；單一頁面、純前端、無依賴。雲端版使用 Supabase Auth 登入，登入後才載入儀錶板。
 
 ## 功能
 
 | 頁面 | 功能 |
 |---|---|
+| 登入 | Supabase Auth email／密碼、session 自動續期、登出；未登入不載入儀錶板 |
 | 總覽 | KPI（本週到期／進行中／逾期／完成率）、今日焦點、近期行程（會議＋私人行程）、專案進度 |
 | 任務 | 看板（可拖放換狀態）⇄ 清單、篩選（高優先／本週／逾期）、新增/編輯/刪除 |
 | AI 工作區 | 位於任務頁子頁：AI 待辦、處理進度、等待確認、完成四區；任務指示、進度、結果、更新紀錄；複製 JSON／Agent 指令、套用 Agent 更新 |
@@ -23,7 +24,9 @@
 ## 檔案
 
 ```
-index.html    入口（部署時的主要檔案）
+index.html    入口（登入頁＋儀錶板外殼）
+auth.js       Supabase Auth 登入、session refresh、登出與載入 app.js
+auth-setup.sql 登入白名單、dashboards RLS 與 RPC 權限
 styles.css    樣式
 app.js        核心邏輯（資料、儲存、互動）
 telegram-bot/ Telegram → 任務／私人行程／會議（Supabase Edge Function，選用）
@@ -34,9 +37,7 @@ README.md     本說明
 
 ## 使用
 
-直接雙擊 `index.html` 即可使用。資料儲存在瀏覽器 localStorage（每個瀏覽器獨立），定期用「設定 → 匯出 JSON」備份。
-
-如果想用本機伺服器開啟（例如 Chrome 的檔案存取限制較嚴時）：
+本版本需要先登入。建議用本機伺服器或 GitHub Pages 開啟；直接雙擊 `index.html` 也可以載入登入頁，但 Supabase Auth／CORS 以 `https://` 或 `http://localhost` 最穩定。
 
 ```powershell
 cd C:\Users\m9552\work-dashboard
@@ -44,41 +45,56 @@ python -m http.server 8080
 # 瀏覽 http://localhost:8080
 ```
 
-## 跨裝置同步（Supabase 免費版）
+登入成功後，資料才會載入並顯示。資料存在瀏覽器 localStorage（每個瀏覽器獨立），雲端同步是選用的；定期用「設定 → 匯出 JSON」備份。
 
-讓不同瀏覽器／裝置共用同一份資料。Supabase 是免費的 Postgres 雲端資料庫，之後要搬到自己的伺服器時，把它換成自訂 API 即可。
+## 登入與跨裝置同步（Supabase）
+
+讓不同瀏覽器／裝置共用同一份資料，並用 Supabase Auth 保護。Supabase 是免費的 Postgres 雲端資料庫，之後要搬到自己的伺服器時，把它換成自訂 API 即可。
 
 ### 一次性設定
 
-1. 到 [supabase.com](https://supabase.com) 註冊 → **New project**（免費方案）
-2. 左側選單 **SQL Editor** → 貼上以下 SQL → **Run**：
+1. 到 [supabase.com](https://supabase.com) 註冊 → **New project**（免費方案）。
+2. **Authentication → Users → Add user** 建立登入帳號（Email + 密碼）。
+   - 建議勾選 **Auto Confirm User**，或先到信箱完成驗證。
+   - 到 **Authentication → Providers → Email** 關閉 **Allow new users to sign up**；帳號只由管理者建立。
+3. **SQL Editor** 先建立 `dashboards`（如果還沒有），再執行 [`auth-setup.sql`](auth-setup.sql)：
 
 ```sql
-create table if not exists dashboards (
+create table if not exists public.dashboards (
   id text primary key,
   payload jsonb not null,
   updated_at timestamptz not null default now()
 );
-alter table dashboards enable row level security;
-create policy "anon all" on dashboards
-  for all using (true) with check (true);
+alter table public.dashboards enable row level security;
 ```
 
-3. **Project Settings** 裡兩個頁面各拿一半：
-   - **Data API** 頁 → 複製 **API URL**（`https://xxxx.supabase.co`）
-   - **API Keys** 頁 → 複製 **anon public key**（或新版 **Publishable key**）
-   - ⚠️ 不要使用 `service_role`／`Secret key`（伺服器專用、權限全開）
-4. 儀錶板 → **設定 → 雲端同步**：
-   - 貼上 Project URL 與 anon key
-   - 自訂一組「**文件金鑰**」（像密碼，多台裝置要填一樣的）
-   - 按「**測試連線**」→ 成功後按「**備份到雲端**」
+`auth-setup.sql` 會建立 `dashboard_members` 白名單、把 `dashboards` 改成僅限登入會員，並收回 anon 對寫入 RPC 的執行權。若已經在用 Telegram Bot 或 MCP，請先重新部署 Edge Functions（讓它們使用 service_role）再執行這個 SQL，否則它們會因 anon 權限被收回而失敗。
+
+4. 把剛剛建立的帳號加入白名單（把 email 換成你的）：
+
+```sql
+insert into public.dashboard_members (user_id, email, role)
+select id, email, 'owner'
+  from auth.users
+ where lower(email) = lower('you@example.com')
+on conflict (user_id) do update
+  set email = excluded.email, role = 'owner', active = true;
+```
+
+5. **Project Settings → Data API** 複製 **Project URL**（`https://xxxx.supabase.co`）；**API Keys** 複製 **anon / publishable key**。
+   - ⚠️ 瀏覽器只使用 anon / publishable key，**不要**使用 `service_role`／Secret key。
+6. 開啟儀錶板，在登入頁的「Supabase 連線設定」填入 Project URL、anon key 與文件金鑰（`dashboards.id`，多台裝置要相同），再輸入 Email／密碼登入。
+7. 登入後到 **設定 → 雲端同步** 按「**測試連線**」→「**備份到雲端**」。
+
+> MCP、Telegram Bot 與 AI Worker 是伺服器端程式，改用 `service_role` 存取 `dashboards`；詳見各子資料夾的 README。`service_role` 不可出現在瀏覽器、截圖或 Git。
 
 ### 日常使用
 
-- 另一台裝置：填相同設定 → 按「**從雲端還原**」
+- 另一台裝置：用同一個 Supabase 專案與文件金鑰登入 → 按「**從雲端還原**」
 - 開啟「**每次變更後自動上傳**」：本機編輯約 2.5 秒後自動同步到雲端
 - 開啟「**自動接收雲端變更**」：每 30 秒檢查雲端，別台裝置或 Telegram 的更新會自動出現
 - 開啟網頁時若偵測到雲端版本較新，會跳出詢問是否載入
+- 登出只清除登入 session；本機快取仍保留。共用電腦請在瀏覽器設定中清除此網站資料。
 
 ### 透過 Telegram 新增任務（選用）
 
@@ -129,9 +145,11 @@ AI 工作區下方也提供「複製 AI 待辦 JSON」、「複製 Agent 指令�
 
 ### 注意
 
-- 「文件金鑰」等於這份資料的密碼，請勿外流
-- 免費專案閒置 7 天會暫停，回 Supabase 官網按 Restore 即可
-- 之後要搬到自己的伺服器：把同步邏輯改用你自己的 API（同樣是 URL＋金鑰＋GET/PUT JSON 即可）
+- 登入只保護雲端資料與畫面；本機 localStorage 仍是明文。共用電腦請登出並清除網站資料。
+- `dashboard_members` 內的所有帳號共用同一份看板；若需要每人獨立資料，還要再做 per-user 文件對應。
+- `dashboard_members` 是登入白名單；停用某個帳號只要把 `active` 改成 `false`。
+- 免費專案閒置 7 天會暫停，回 Supabase 官網按 Restore 即可。
+- 之後要搬到自己的伺服器：把同步邏輯改用你自己的 API（同樣是 URL＋金鑰＋GET/PUT JSON 即可）。
 
 ## 部署到 GitHub Pages
 
@@ -141,7 +159,7 @@ AI 工作區下方也提供「複製 AI 待辦 JSON」、「複製 Agent 指令�
 ```powershell
 cd C:\Users\m9552\work-dashboard
 git init
-git add index.html styles.css app.js README.md
+git add index.html auth.js auth-setup.sql styles.css app.js README.md
 git commit -m "工作儀錶板 v1"
 git branch -M main
 git remote add origin https://github.com/<你的帳號>/work-dashboard.git
@@ -171,7 +189,8 @@ https://<你的帳號>.github.io/work-dashboard/
 ## 路線圖
 
 - **v1.6**：AI 工作區（AI 待辦、進度、等待確認、完成、Agent API）✅
-- **v1.7**：GitHub 專案面板（顯示 issue、PR 狀態）
+- **v1.7**：Supabase Auth 登入、dashboard_members 白名單、RLS 收緊與 service_role 伺服器存取 ✅
+- **v1.8**：GitHub 專案面板（顯示 issue、PR 狀態）
 - **v2**：Google Calendar／Outlook 日曆整合（OAuth）、信件待辦萃取
 - 雲端同步：✅ 已完成（Supabase；可自訂 API 替換）
 - Telegram 收集：✅ 任務／私人行程／會議（按鈕確認；Edge Function）

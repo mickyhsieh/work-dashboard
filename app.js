@@ -1,5 +1,5 @@
 /* ============================================================
-   工作儀錶板 v1.6 — 核心邏輯
+   工作儀錶板 v1.7 — 核心邏輯
    純前端、無依賴；資料存於 localStorage
    ============================================================ */
 (function(){
@@ -723,7 +723,7 @@ function aiAgentPanelHTML(){
 function aiCloudMerge(){
   syncCfgFromInputs();
   if(!sbReady()){ toast('請先到設定完成雲端同步'); return; }
-  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
+  sbFetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
     .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
     .then(function(arr){
       if(!arr || !arr.length){ toast('雲端還沒有資料列，請先確認同步設定'); return; }
@@ -1621,12 +1621,12 @@ function renderSettings(){
   h += '</div></div>';
   h += '<div class="stack">';
   h += '<div class="card"><div class="card-h">整合（規劃中）</div>';
-  h += '<div class="prow">GitHub 專案 <span class="dim">顯示 issue、PR 狀態</span><span class="pill p-low push">v1.7</span></div>';
+  h += '<div class="prow">GitHub 專案 <span class="dim">顯示 issue、PR 狀態</span><span class="pill p-low push">v1.8</span></div>';
   h += '<div class="prow">Google Calendar <span class="dim">同步行程</span><span class="pill p-low push">v2</span></div>';
   h += '<div class="prow">Outlook / 信件 <span class="dim">摘要與待辦萃取</span><span class="pill p-low push">v2</span></div>';
   h += '</div>';
   h += '<div class="card"><div class="card-h">關於</div><div class="card-b">';
-  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.6・純前端、無依賴・支援 AI 工作區、多日私人行程、Supabase 雲端同步與 Telegram 按鈕收集</p>';
+  h += '<p class="kbd-note" style="margin:0 0 8px">工作儀錶板 v1.7・純前端、無依賴・支援登入權限、AI 工作區、多日私人行程、Supabase 雲端同步與 Telegram 按鈕收集</p>';
   h += '<p class="kbd-note" style="margin:0">部署：將此資料夾上傳到 GitHub repo，開啟 Pages（main / root）即可上線，詳見 README.md。</p>';
   h += '</div></div>';
   h += '</div></div>';
@@ -2259,12 +2259,15 @@ function sbBase(){
 }
 function sbKey(){ return String(syncCfg.anonKey).trim(); }
 function sbHeaders(){
-  var k = sbKey();
-  var h = { 'apikey': k, 'Content-Type': 'application/json' };
-  /* 舊版 anon key 是 JWT（eyJ 開頭）→ 放進 Authorization 標頭；
-     新版 publishable key（sb_publishable_ 開頭）→ 只需要 apikey 標頭 */
-  if(k.indexOf('eyJ') === 0) h.Authorization = 'Bearer ' + k;
-  return h;
+  /* 瀏覽器只帶 apikey；登入使用者的 access token 由 WDAuth.fetch 加上
+     Authorization: Bearer <access_token>。不要把 anon key 當成登入身份。 */
+  return { 'apikey': sbKey(), 'Content-Type': 'application/json' };
+}
+function sbFetch(url, options){
+  if(window.WDAuth && typeof window.WDAuth.fetch === 'function'){
+    return window.WDAuth.fetch(url, options);
+  }
+  return fetch(url, options);
 }
 function syncCfgFromInputs(){
   var u = $('#sync-url'), k = $('#sync-key'), d = $('#sync-doc');
@@ -2278,15 +2281,16 @@ function syncErrMsg(res, err){
     return '無法連線（檢查 Project URL 與網路）';
   }
   if(res){
-    if(res.status === 401 || res.status === 403) return '金鑰錯誤或權限不足（檢查 anon key／RLS 設定）';
-    if(res.status === 404) return '找不到資料表 dashboards（請先執行設定步驟的 SQL）';
+    if(res.status === 401) return '登入已過期或權限不足，請重新登入';
+    if(res.status === 403) return '權限不足（確認 dashboard_members 白名單與 RLS 設定）';
+    if(res.status === 404) return '找不到資料表或登入函式（請先執行 auth-setup.sql）';
     return 'HTTP ' + res.status;
   }
   return String((err && err.message) || err || '未知錯誤');
 }
 function sbTest(){
   syncCfgFromInputs();
-  if(!sbReady()){ toast('請先填寫 URL、anon key 與文件金鑰'); return; }
+  if(!sbReady()){ toast('請先完成 Supabase 連線設定，並填入文件金鑰'); return; }
   var statusEl = $('#sync-status');
   function show(msg, isErr){
     if(statusEl){
@@ -2299,7 +2303,7 @@ function sbTest(){
   if(!/^https:\/\//i.test(base)){ show('連線失敗：Project URL 必須以 https:// 開頭', true); toast('Project URL 必須以 https:// 開頭'); return; }
   if(/supabase\.com\/dashboard/i.test(base)){ show('連線失敗：這是 Supabase Dashboard 網址，請改用 Data API 頁的 API URL（https://xxxx.supabase.co）', true); toast('URL 貼成 Dashboard 網址了'); return; }
   show('測試中…', false);
-  fetch(base + '/rest/v1/dashboards?select=id&limit=1', { headers: sbHeaders() })
+  sbFetch(base + '/rest/v1/dashboards?select=id&limit=1', { headers: sbHeaders() })
     .then(function(r){
       if(!r.ok) return r.text().then(function(txt){ throw { res: r, body: txt }; });
       return r.json();
@@ -2317,7 +2321,7 @@ function sbTest(){
 function pushToCloud(silent){
   if(!sbReady()){ if(!silent) toast('請先完成雲端同步設定'); return; }
   var nowIso = new Date().toISOString();
-  fetch(sbBase() + '/rest/v1/dashboards', {
+  sbFetch(sbBase() + '/rest/v1/dashboards', {
     method: 'POST',
     headers: Object.assign({}, sbHeaders(), { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
     body: JSON.stringify([{ id: syncCfg.docId, payload: state, updated_at: nowIso }])
@@ -2346,7 +2350,7 @@ function applyCloudPayload(remote, silent){
 function pullFromCloud(confirmFirst){
   syncCfgFromInputs();
   if(!sbReady()){ toast('請先完成雲端同步設定'); return; }
-  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
+  sbFetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
     .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
     .then(function(arr){
       if(!arr || !arr.length){ toast('雲端還沒有資料，先按「備份到雲端」'); return; }
@@ -2358,7 +2362,7 @@ function pullFromCloud(confirmFirst){
 /* 開啟時檢查雲端是否有較新版本 */
 function checkCloudNewer(){
   if(!sbReady()) return;
-  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
+  sbFetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
     .then(function(r){ return r.ok ? r.json() : []; })
     .then(function(arr){
       syncCfg.cloudUpdatedAt = (arr && arr.length) ? (arr[0].updated_at || null) : null;
@@ -2425,7 +2429,7 @@ var cloudTimeBusy = false;
 function refreshCloudTime(){
   if(!sbReady() || cloudTimeBusy) return;
   cloudTimeBusy = true;
-  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=updated_at&limit=1', { headers: sbHeaders() })
+  sbFetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=updated_at&limit=1', { headers: sbHeaders() })
     .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
     .then(function(arr){
       syncCfg.cloudUpdatedAt = (arr && arr.length) ? (arr[0].updated_at || null) : null;
@@ -2447,7 +2451,7 @@ function autoPullTick(){
   var ae = document.activeElement;
   if(ae && ae.closest && ae.closest('#view-settings') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
   autoPullBusy = true;
-  fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=updated_at&limit=1', { headers: sbHeaders() })
+  sbFetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=updated_at&limit=1', { headers: sbHeaders() })
     .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
     .then(function(arr){
       if(!arr || !arr.length) return;
@@ -2458,7 +2462,7 @@ function autoPullTick(){
         Date.parse(syncCfg.lastPullAt || '') || 0
       );
       if(remoteTs <= localTs + 2000) return;
-      return fetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
+      return sbFetch(sbBase() + '/rest/v1/dashboards?id=eq.' + encodeURIComponent(syncCfg.docId) + '&select=payload,updated_at&limit=1', { headers: sbHeaders() })
         .then(function(r){ if(!r.ok) throw { res: r }; return r.json(); })
         .then(function(rows){
           if(rows && rows.length){
@@ -2471,21 +2475,19 @@ function autoPullTick(){
     .then(function(){ autoPullBusy = false; });
 }
 function syncCardHTML(){
-  var sql = 'create table if not exists dashboards (\n' +
-    '  id text primary key,\n' +
-    '  payload jsonb not null,\n' +
-    '  updated_at timestamptz not null default now()\n' +
-    ');\n' +
-    'alter table dashboards enable row level security;\n' +
-    'create policy "anon all" on dashboards\n' +
-    '  for all using (true) with check (true);';
+  var sql = '-- 登入與權限設定請執行 repo 根目錄的 auth-setup.sql\n' +
+    '-- 1. 建立 dashboard_members 白名單\n' +
+    '-- 2. dashboards 僅限 authenticated 會員存取\n' +
+    '-- 3. 收回 anon 對寫入 RPC 的執行權';
+  var user = (window.WDAuth && window.WDAuth.getUser) ? window.WDAuth.getUser() : null;
+  var email = (user && user.email) ? user.email : '已登入';
   var h = '<div class="card" style="margin-bottom:14px"><div class="card-h">雲端同步（Supabase 免費版）</div><div class="card-b">';
-  h += '<p class="kbd-note" style="margin-top:0">讓不同瀏覽器／裝置共用同一份資料：填一次設定 → 按「備份到雲端」；另一台按「從雲端還原」。開啟自動上傳後，每次變更會在約 2.5 秒後同步。</p>';
-  h += '<div class="field"><label>Project URL（在 Data API 頁）</label><input id="sync-url" value="' + esc(syncCfg.url) + '" placeholder="https://xxxx.supabase.co"></div>';
-  h += '<div class="row2">' +
-    '<div class="field"><label>anon / publishable key（在 API Keys 頁）</label><input id="sync-key" value="' + esc(syncCfg.anonKey) + '" placeholder="eyJhbGciOi… 或 sb_publishable_…"></div>' +
-    '<div class="field"><label>文件金鑰（自訂，等同密碼）</label><input id="sync-doc" value="' + esc(syncCfg.docId) + '" placeholder="my-dashboard-8f3k"></div>' +
-  '</div>';
+  h += '<div class="sync-account"><div class="who"><span class="dim">登入身份</span><b>' + esc(email) + '</b></div>' +
+    '<button type="button" class="btn btn-ghost" data-auth-logout>登出</button></div>';
+  h += '<p class="kbd-note" style="margin-top:0">此版本需要登入才能開啟儀錶板與讀寫雲端。不同裝置使用相同 Supabase 專案與文件金鑰，就會共用同一份資料。</p>';
+  h += '<p class="kbd-note">Supabase：<b>' + esc(syncCfg.url || '尚未設定') + '</b>（Project URL／anon key 在登入頁設定；變更後請重新登入）</p>';
+  h += '<div class="field"><label>文件金鑰（dashboards.id）</label><input id="sync-doc" value="' + esc(syncCfg.docId) + '" placeholder="my-dashboard-8f3k"></div>';
+  h += '<p class="kbd-note">不要在瀏覽器填入 service_role / secret key。</p>';
   h += '<div class="sync-opts">' +
     '<label><input type="checkbox" id="sync-auto"' + (syncCfg.autoPush ? ' checked' : '') + '> 每次變更後自動上傳</label>' +
     '<label><input type="checkbox" id="sync-autopull"' + (syncCfg.autoPull !== false ? ' checked' : '') + '> 自動接收雲端變更（每 30 秒，適合 Telegram 新增任務）</label>' +
@@ -2497,12 +2499,12 @@ function syncCardHTML(){
   '</div>';
   h += '<div class="sync-status" id="sync-status" style="margin-top:10px"></div>';
   h += '<div class="sync-meta" id="sync-meta"></div>';
-  h += '<details><summary>第一次設定：三個步驟</summary><div class="body">';
-  h += '<p class="kbd-note">1. 到 supabase.com 註冊 → New project（免費方案）。</p>';
-  h += '<p class="kbd-note">2. 左側選單 SQL Editor → 貼上以下 SQL → Run：</p>';
+  h += '<details><summary>登入與資料庫設定</summary><div class="body">';
+  h += '<p class="kbd-note">1. Supabase Auth → Users 建立登入帳號（建議勾選 Auto Confirm User）。</p>';
+  h += '<p class="kbd-note">2. SQL Editor 執行 <code>auth-setup.sql</code>，再把帳號加入 <code>dashboard_members</code> 白名單。</p>';
+  h += '<p class="kbd-note">3. MCP／Telegram／AI Worker 的 <code>DASH_KEY</code> 改用 service_role（僅限伺服器端）。</p>';
   h += '<pre><code>' + esc(sql) + '</code></pre>';
-  h += '<p class="kbd-note">3. Project Settings → API → 複製 Project URL 與 anon public key 貼到上方欄位；多台裝置要填<b>相同</b>的文件金鑰。</p>';
-  h += '<p class="kbd-note">提醒：文件金鑰就像密碼，請勿外流；免費專案閒置 7 天會暫停，回 Supabase 官網按 Restore 即可。</p>';
+  h += '<p class="kbd-note">anon / publishable key 可以公開；service_role / secret key 不可放在瀏覽器、截圖或 Git。免費專案閒置 7 天會暫停，回 Supabase 官網按 Restore 即可。</p>';
   h += '</div></details>';
   h += '</div></div>';
   return h;
@@ -2729,7 +2731,7 @@ document.addEventListener('submit', function(e){
 document.addEventListener('input', function(e){
   if(e.target.id === 'gsearch') renderSearch(e.target.value);
   else if(e.target.id === 'doc-search'){ docSearch = e.target.value; renderDocsList(); }
-  else if(e.target.id === 'sync-url' || e.target.id === 'sync-key' || e.target.id === 'sync-doc'){
+  else if(e.target.id === 'sync-doc'){
     syncCfgFromInputs();
     var st = $('#sync-status');
     if(st){ delete st.dataset.msg; st.style.color = ''; }
