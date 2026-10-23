@@ -86,7 +86,7 @@ create policy "anon all" on dashboards
 
 ### 透過 MCP 新增一般任務（選用）
 
-如果老闆使用 OpenCode 或支援 Remote MCP 的 AI 助手，可以讓助手直接呼叫 `create_task`，把交辦事項放進「任務 → 我的任務」，建立後發 Telegram 通知。MCP Server 只開放新增一般任務、查專案、查老闆交辦任務，不會寫入 AI 工作區。部署與 OpenCode 設定見 [`mcp-task/README.md`](mcp-task/README.md)。
+如果老闆使用 OpenCode 或支援 Remote MCP 的 AI 助手，可以讓助手直接呼叫 `create_task`，把交辦事項放進「任務 → 我的任務」，建立後發 Telegram 通知。MCP 任務在看板上會顯示 `MCP` 徽章，也可以用「MCP 交辦」篩選。MCP Server 只開放新增一般任務、查專案、查老闆交辦任務，不會寫入 AI 工作區。部署與 OpenCode 設定見 [`mcp-task/README.md`](mcp-task/README.md)。
 
 ### AI 工作區與 Agent
 
