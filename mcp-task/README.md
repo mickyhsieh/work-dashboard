@@ -56,6 +56,7 @@ Supabase dashboards.payload.tasks（source=mcp、sender=...）
 | `token-registry.sql` | 建立 `mcp_clients` 與 `resolve_mcp_client()` token 驗證 |
 | `token.mjs` | 在本機產生 token、SHA-256 與可直接貼上的 SQL |
 | `opencode.example.jsonc` | OpenCode V2 的 MCP 設定範例 |
+| `hermes.example.yaml` | Hermes Agent 的 MCP 設定範例 |
 
 ## 部署步驟
 
@@ -323,14 +324,51 @@ opencode mcp list
 
 ## Hermes Agent
 
-若 Hermes 支援標準 Remote MCP，設定同樣是：
+[Hermes Agent](https://hermes-agent.nousresearch.com/) 支援 Remote MCP 與自訂 header。把 `hermes.example.yaml` 的內容合併到：
 
-- URL：`https://<PROJECT_REF>.supabase.co/functions/v1/mcp-task`
-- Header：`Authorization: Bearer <該 Hermes 的 token>`
+- `~/.hermes/config.yaml`（Windows：`C:\Users\<使用者>\.hermes\config.yaml`）
 
-建議幫 Hermes 建一列獨立的 `mcp_clients`，例如 `name = "Hermes"`，這樣看板就能區分是 OpenCode 還是 Hermes 丟的。
+把 Hermes 專用的 token 放進 `~/.hermes/.env`，不要寫在 `config.yaml` 或 commit：
 
-若 Hermes 不支援 Remote MCP 或自訂 header，先不要硬接；改用其他支援 MCP 的 Client，或之後再接公司 HCL Notes REST API。
+```text
+MCP_TASK_TOKEN=mcp_xxxxxxxxxxxxxxxxx
+```
+
+設定內容：
+
+```yaml
+mcp_servers:
+  mickey_tasks:
+    url: "https://<PROJECT_REF>.supabase.co/functions/v1/mcp-task"
+    headers:
+      Authorization: "Bearer ${MCP_TASK_TOKEN}"
+    tools:
+      include:
+        - create_task
+        - list_projects
+        - list_assigned_tasks
+      resources: false
+      prompts: false
+    skip_preflight: true
+```
+
+重開 Hermes，或執行 `/reload-mcp`，再測試：
+
+```powershell
+hermes mcp test mickey_tasks
+```
+
+成功後工具會以 `mcp__mickey_tasks__create_task`、`mcp__mickey_tasks__list_projects`、`mcp__mickey_tasks__list_assigned_tasks` 的名稱出現。可以對 Hermes 說：
+
+```text
+請用 mcp__mickey_tasks__create_task 新增任務：
+標題：整理 Q4 預算
+截止：2026-10-30
+優先：高
+備註：老闆交辦
+```
+
+建議在 `mcp_clients` 建一列獨立的 `name = "Boss-Hermes"`，這樣看板與 Telegram 就能分辨是 OpenCode 還是 Hermes 來的。`create_task` 只寫入一般任務，不會寫入 AI 工作區。
 
 ## 工具說明
 

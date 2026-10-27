@@ -1,0 +1,28 @@
+# Hermes Agent（Nous Research）MCP 設定範例
+#
+# 使用方式：
+# 1. 把下面的 mcp_servers 合併到 ~/.hermes/config.yaml
+# 2. 在 ~/.hermes/.env 加入（不要 commit、不要貼到公開頻道）：
+#      MCP_TASK_TOKEN=mcp_xxxxxxxxxxxxxxxxx
+# 3. 重開 Hermes，執行：
+#      hermes mcp test mickey_tasks
+#
+# 每個 Client 都要有自己的 token；不要把 OpenCode 的 token 給 Hermes。
+
+mcp_servers:
+  mickey_tasks:
+    url: "https://<PROJECT_REF>.supabase.co/functions/v1/mcp-task"
+    headers:
+      Authorization: "Bearer ${MCP_TASK_TOKEN}"
+    tools:
+      include:
+        - create_task
+        - list_projects
+        - list_assigned_tasks
+      resources: false
+      prompts: false
+    # 這個 MCP Server 只接受 POST；若 Hermes 的 preflight 回報
+    # content-type 錯誤，保留下面這行。
+    skip_preflight: true
+    # 想讓每次 create_task 都跳人工確認時，取消下面這行註解：
+    # trust: untrusted
