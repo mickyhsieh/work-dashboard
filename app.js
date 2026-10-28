@@ -2580,8 +2580,28 @@ function renderSearch(q){
 }
 
 /* ================= 事件：點擊 ================= */
+/* 點遮罩關閉彈窗時，按下與放開都必須在遮罩上。
+   否則在輸入框選字、把游標拖到框外放開時，click 會落在 overlay 而誤關彈窗。 */
+var overlayDown = false, overlayUp = false;
+function isOverlayEl(el){ return !!(el && el.classList && el.classList.contains('overlay')); }
+document.addEventListener('pointerdown', function(e){
+  overlayDown = e.button === 0 && isOverlayEl(e.target);
+  overlayUp = false;
+}, true);
+document.addEventListener('pointerup', function(e){
+  overlayUp = e.button === 0 && isOverlayEl(e.target);
+}, true);
+document.addEventListener('pointercancel', function(){
+  overlayDown = false; overlayUp = false;
+}, true);
 document.addEventListener('click', function(e){
-  if(e.target.classList && e.target.classList.contains('overlay')){ closeModal(); return; }
+  if(isOverlayEl(e.target)){
+    var backdrop = overlayDown && overlayUp;
+    overlayDown = false; overlayUp = false;
+    if(backdrop) closeModal();
+    return;
+  }
+  overlayDown = false; overlayUp = false;
   var el = e.target.closest('[data-action]');
   if(!el) return;
   var a = el.dataset.action;
