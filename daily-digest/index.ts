@@ -438,7 +438,14 @@ function safeEqual(a, b) {
 
 async function handler(req) {
   if (req.method === 'GET') {
-    return json({ ok: true, service: 'daily-digest' });
+    return json({
+      ok: true,
+      service: 'daily-digest',
+      timezone: TZ,
+      configured: Boolean(
+        BOT_TOKEN && ALLOWED_CHAT_ID && DASH_ID && DASH_URL && DASH_KEY && CRON_SECRET,
+      ),
+    });
   }
   if (req.method !== 'POST') {
     return json({ ok: false, error: 'method not allowed' }, 405);
