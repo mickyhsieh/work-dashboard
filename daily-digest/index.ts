@@ -17,6 +17,8 @@
 //
 // 先執行同資料夾的 setup.sql 建立 digest_runs 與 Cron 所需的 Vault secret。
 // 這個函式只讀取 dashboards，不會修改看板資料。
+//
+// 摘要格式與 ai-worker/digest.mjs 相同；修改其中一邊時請同步另一邊。
 
 const TZ = 'Asia/Taipei';
 const PRIORITY_LABEL = { high: '高', mid: '中', low: '低' };
@@ -486,6 +488,7 @@ async function handler(req) {
     if (!preview) {
       const existing = await getDigestRun(date);
       if (existing && existing.sent_at && !force) {
+        console.log(`[daily-digest] ${date} skipped (already sent)`);
         return json({
           ok: true,
           skipped: true,
@@ -500,6 +503,7 @@ async function handler(req) {
     const text = buildDigest(payload, date);
 
     if (preview) {
+      console.log(`[daily-digest] ${date} preview chars=${text.length}`);
       return json({
         ok: true,
         preview: true,
@@ -511,15 +515,12 @@ async function handler(req) {
 
     await tgSend(text);
     await saveDigestRun(date, text.length, updatedAt);
+    console.log(`[daily-digest] ${date} sent chars=${text.length}`);
     return json({ ok: true, sent: true, date, chars: text.length });
   } catch (error) {
-    return json(
-      {
-        ok: false,
-        error: error && error.message ? error.message : String(error),
-      },
-      500,
-    );
+    const message = error && error.message ? error.message : String(error);
+    console.error(`[daily-digest] ${date} error: ${message}`);
+    return json({ ok: false, error: message }, 500);
   }
 }
 

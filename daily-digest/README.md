@@ -12,6 +12,8 @@ Supabase Cron（每天 00:00 UTC = 台灣 08:00）
 
 摘要內容與 `ai-worker/digest.mjs` 相同：逾期任務、今天到期、其他未完成、AI 待辦、AI 進行中、等你確認。
 
+> 目前是兩份獨立程式；修改摘要格式時，請同步更新 `ai-worker/digest.mjs` 與 [`index.ts`](./index.ts)。
+
 ## 會用到的 Secrets
 
 多數可以直接沿用現有 `telegram-task` 的設定；Edge Function secrets 是整個專案共用。
